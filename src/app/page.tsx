@@ -31,7 +31,13 @@ import { CreditPanel } from "@/features/credit/CreditPanel";
 import { AnalyzingPanel } from "@/features/inspection/AnalyzingPanel";
 import { PreValuationPanel } from "@/features/pre-valuation/PreValuationPanel";
 import { TrackingPanel } from "@/features/tracking/TrackingPanel";
-import { analyzePhoto, completeFinalValuation, confirmBooking, createSwapRequest } from "@/lib/api";
+import {
+  analyzePhoto,
+  completeFinalValuation,
+  confirmBooking,
+  createSwapRequest,
+  requestInstantCall,
+} from "@/lib/api";
 import type { SwapRequest } from "@/types/swap";
 
 type SwapStep =
@@ -147,14 +153,14 @@ export default function HomePage() {
   }, [homeSwapStatus]);
 
   const createMutation = useMutation({
-    mutationFn: createSwapRequest,
+    mutationFn: () => createSwapRequest(selectedAppliance),
     onSuccess: (data) => setSwapRequest(data),
   });
 
   const analyzeMutation = useMutation({
     mutationFn: async () => {
-      const current = swapRequest ?? (await createSwapRequest());
-      return analyzePhoto(current.id, fileName);
+      const current = swapRequest ?? (await createSwapRequest(selectedAppliance));
+      return analyzePhoto(current.id, fileName, selectedAppliance);
     },
     onSuccess: (data) => {
       setSwapRequest(data);
@@ -168,7 +174,10 @@ export default function HomePage() {
   const bookingMutation = useMutation({
     mutationFn: async (booking: BookingSelection) => {
       if (!swapRequest) throw new Error("Swap request is required");
-      const data = await confirmBooking(swapRequest.id);
+      const data =
+        booking.mode === "schedule"
+          ? await confirmBooking(swapRequest.id, booking.pickupAddress)
+          : await requestInstantCall(swapRequest.id, booking.pickupAddress);
       return { data, booking };
     },
     onSuccess: ({ data, booking }) => {

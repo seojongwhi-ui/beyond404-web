@@ -22,36 +22,77 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function createSwapRequest() {
+export function createSwapRequest(applianceType = "washing_machine") {
   return request<SwapRequest>("/api/swap-requests", {
     method: "POST",
     body: JSON.stringify({
       userName: "Demo User",
       phoneNumber: "+91-90000-00000",
+      applianceType,
     }),
   });
 }
 
-export function analyzePhoto(id: number, fileName: string) {
+export function analyzePhoto(id: number, fileName: string, applianceType = "washing_machine") {
   return request<SwapRequest>(`/api/swap-requests/${id}/photos`, {
     method: "POST",
-    body: JSON.stringify({ fileName }),
+    body: JSON.stringify({ fileName, applianceType }),
   });
 }
 
-export function confirmBooking(id: number) {
+export function confirmBooking(id: number, address = "Bengaluru, Karnataka") {
   return request<SwapRequest>(`/api/swap-requests/${id}/booking`, {
     method: "POST",
     body: JSON.stringify({
       bookingDate: "2026-06-12",
       bookingTime: "10:00",
-      address: "Bengaluru, Karnataka",
+      address,
+      detailAddress: "Demo street",
+      pickupLat: 28.6197,
+      pickupLng: 77.2196,
     }),
   });
 }
 
 export function completeFinalValuation(id: number) {
   return request<SwapRequest>(`/api/swap-requests/${id}/final-valuation/mock`, {
+    method: "POST",
+  });
+}
+
+export function acceptPreValuation(id: number) {
+  return request<SwapRequest>(`/api/swap-requests/${id}/pre-valuation/accept`, {
+    method: "POST",
+  });
+}
+
+export function requestInstantCall(id: number, address = "A-12, New Delhi demo street") {
+  return request<SwapRequest>(`/api/swap-requests/${id}/instant-call`, {
+    method: "POST",
+    body: JSON.stringify({
+      address,
+      detailAddress: "Near LG demo pickup point",
+      pickupLat: 28.6197,
+      pickupLng: 77.2196,
+    }),
+  });
+}
+
+export function requestReReview(id: number, reason: string) {
+  return request<SwapRequest>(`/api/swap-requests/${id}/re-review`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function completeReReview(id: number) {
+  return request<SwapRequest>(`/api/swap-requests/${id}/re-review/mock-complete`, {
+    method: "POST",
+  });
+}
+
+export function issueCredit(id: number) {
+  return request<SwapRequest>(`/api/swap-requests/${id}/credits`, {
     method: "POST",
   });
 }
