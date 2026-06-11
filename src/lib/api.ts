@@ -1,11 +1,22 @@
 import type { SwapRequest } from "@/types/swap";
 
+export type DemoUser = {
+  userId: number;
+  userName: string;
+  phoneNumber: string;
+  thinqUserKey: string;
+};
+
 function resolveApiBaseUrl() {
-  if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
   }
 
-  return "";
+  if (typeof window === "undefined") {
+    return "http://127.0.0.1:8080";
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:8080`;
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -50,15 +61,47 @@ export type BookingPayload = PickupLocationPayload & {
 };
 
 export function createSwapRequest(applianceType = "washing_machine") {
+  return createSwapRequestForUser(
+    {
+      userName: "Demo User",
+      phoneNumber: "+91-90000-00000",
+    },
+    applianceType,
+  );
+}
+
+export function demoLogin(userName: string, phoneNumber: string) {
+  return request<DemoUser>("/api/auth/demo-login", {
+    method: "POST",
+    body: JSON.stringify({ userName, phoneNumber }),
+  });
+}
+
+export function createSwapRequestForUser(
+  user: Pick<DemoUser, "userId" | "userName" | "phoneNumber"> | { userName: string; phoneNumber: string },
+  applianceType = "washing_machine",
+) {
   return request<SwapRequest>("/api/swap-requests", {
     method: "POST",
     body: JSON.stringify({
-      userName: "Demo User",
-      phoneNumber: "+91-90000-00000",
+      userId: "userId" in user ? user.userId : undefined,
+      userName: user.userName,
+      phoneNumber: user.phoneNumber,
       applianceType,
     }),
   });
 }
+
+export type CapturePayload = {
+  exteriorPhotoFileName: string;
+  labelPhotoFileName: string;
+  agreedToCreditPolicy: boolean;
+  applianceType: string;
+  brand: string;
+  modelName: string;
+  estimatedAge: string;
+  exteriorCondition: string;
+};
 
 export function analyzePhoto(id: number, payload: CapturePayload) {
   return request<SwapRequest>(`/api/swap-requests/${id}/photos`, {

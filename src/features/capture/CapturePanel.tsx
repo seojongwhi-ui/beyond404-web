@@ -15,6 +15,17 @@ type ApplianceId = "washing_machine" | "refrigerator" | "air_conditioner" | "mic
 type CapturePhase = "consent" | "camera" | "recognizing" | "review";
 type CaptureTarget = "exterior" | "label";
 
+export type CaptureSubmission = {
+  exteriorPhotoFileName: string;
+  labelPhotoFileName: string;
+  agreedToCreditPolicy: boolean;
+  applianceType: ApplianceId;
+  brand: string;
+  modelName: string;
+  estimatedAge: string;
+  exteriorCondition: string;
+};
+
 type CapturePanelProps = {
   fileName: string;
   loading: boolean;
