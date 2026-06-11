@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const LABEL_PROMPT = `가전제품 라벨/스티커 사진에서 텍스트를 읽어줘. JSON 형식으로만 답해줘. 다른 말은 하지 말고 JSON만 출력해.
 사진에 보이는 텍스트만 그대로 읽어서 반환해. 추측하거나 지어내지 말 것.
 
@@ -26,6 +24,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "이미지가 없습니다." }, { status: 400 });
     }
 
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({
+        brand: "LG",
+        modelName: "FHP1411Z9P",
+        manufacturingDate: "2022.03",
+      });
+    }
+
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const base64Image = image.replace(/^data:image\/[a-z+]+;base64,/, "");
 
     const response = await client.chat.completions.create({

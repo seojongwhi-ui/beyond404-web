@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 export async function POST(request: NextRequest) {
   try {
     const { modelName } = (await request.json()) as { modelName: string };
@@ -11,6 +9,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "모델명이 없습니다." }, { status: 400 });
     }
 
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({
+        applianceType: "세탁기",
+        brand: "LG",
+        capacity: "14kg",
+        size: "중형",
+        releaseYear: 2022,
+        powerConsumption: "500W",
+        weight_kg: 74,
+      });
+    }
+
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const prompt = `가전제품 모델명 "${modelName}"의 정보를 알려줘. JSON 형식으로만 답해줘. 다른 말은 하지 말고 JSON만 출력해.
 
 각 항목 판단 기준:

@@ -322,6 +322,10 @@ export default function HomePage() {
     resetExchangeFlow();
     clearActiveReservation();
   };
+
+  const isSwapIntroScreen = swapItOpened && swapStep === "intro";
+  const isSwapCaptureScreen = Boolean(demoUser) && swapItOpened && swapStep === "capture" && !marketOpened;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#202124] px-3 py-8">
       <section className="relative w-[min(100%,424px)] rounded-[52px] border-[8px] border-[#090a0f] bg-[#090a0f] p-[3px] shadow-phone">
@@ -332,13 +336,17 @@ export default function HomePage() {
           {thinQOpened ? (
             <div
               className={`relative flex h-full animate-[fadeIn_.18s_ease-out] flex-col ${
-                swapItOpened && swapStep === "intro" ? "swapit-pattern-bg" : "bg-cloud"
+                isSwapIntroScreen
+                  ? "swapit-pattern-bg"
+                  : isSwapCaptureScreen
+                    ? "bg-[#111318]"
+                    : "bg-cloud"
               }`}
             >
-              {swapItOpened && swapStep === "intro" ? (
+              {isSwapIntroScreen ? (
                 <IndianPatternOverlay className="z-0" />
               ) : null}
-              <PhoneStatusBar isDark={swapItOpened && swapStep === "intro"} />
+              {!isSwapCaptureScreen ? <PhoneStatusBar isDark={isSwapIntroScreen} /> : null}
               {!demoUser ? (
                 <DemoLoginScreen
                   loading={loginMutation.isPending}

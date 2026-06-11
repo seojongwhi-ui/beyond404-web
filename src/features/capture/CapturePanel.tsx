@@ -8,11 +8,12 @@ import {
   RotateCcw,
   ScanLine,
   ShieldCheck,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ApplianceId = "washing_machine" | "refrigerator" | "air_conditioner" | "microwave" | "tv";
-type CapturePhase = "consent" | "camera" | "recognizing" | "review";
+type CapturePhase = "consent" | "camera" | "recognizing" | "sticker-camera" | "sticker-recognizing" | "review";
 type CaptureTarget = "exterior" | "label";
 
 export type CaptureSubmission = {
@@ -40,12 +41,12 @@ type RecognizedAppliance = {
   applianceType: string;
   brand: string;
   modelName: string;
-  capacity: string;
-  size: string; // 소형 | 중형 | 대형
+  capacity?: string;
+  size?: string; // 소형 | 중형 | 대형
   estimatedAge: string;
   exteriorCondition: string;
   confidence: number;
-  weightKg: number | null; // API 또는 DB에서 얻은 실제 무게
+  weightKg?: number | null; // API 또는 DB에서 얻은 실제 무게
 };
 
 const targetDescriptions: Record<
@@ -107,6 +108,160 @@ const recognitionByAppliance: Record<ApplianceId, RecognizedAppliance> = {
   },
 };
 
+const METAL_PRICES = {
+  steel: 280,
+  aluminum: 1800,
+  copper: 9800,
+};
+
+const METAL_RATIOS: Record<ApplianceId, { steel: number; aluminum: number; copper: number }> = {
+  washing_machine: { steel: 0.62, aluminum: 0.05, copper: 0.025 },
+  refrigerator: { steel: 0.58, aluminum: 0.04, copper: 0.018 },
+  air_conditioner: { steel: 0.42, aluminum: 0.16, copper: 0.055 },
+  microwave: { steel: 0.54, aluminum: 0.03, copper: 0.012 },
+  tv: { steel: 0.18, aluminum: 0.07, copper: 0.01 },
+};
+
+const APPLIANCE_WEIGHTS: Record<ApplianceId, Record<string, number>> = {
+  washing_machine: { "소형": 45, "중형": 62, "대형": 78 },
+  refrigerator: { "소형": 55, "중형": 82, "대형": 115 },
+  air_conditioner: { "소형": 18, "중형": 32, "대형": 48 },
+  microwave: { "소형": 10, "중형": 13, "대형": 17 },
+  tv: { "소형": 9, "중형": 16, "대형": 25 },
+};
+
+const MOCK_MODEL_WEIGHT_DB: Record<string, number> = {
+  FHP1411Z9P: 74,
+  "GL-T422VPZX": 86,
+  "US-Q19BNZE3": 34,
+  MH8265DIS: 12,
+  OLED55C4: 17,
+};
+
+const CREDIT_RATIO_MATRIX: Record<string, number[]> = {
+  premium: [0.08, 0.1, 0.12],
+  standard: [0.05, 0.07, 0.09],
+  basic: [0.03, 0.04, 0.05],
+};
+
+const DUMMY_NEW_PRODUCT = { price: 1000000 };
+const DUMMY_SWAP_COUNT = 1;
+const CAP_RATIO = 0.15;
+
+function getWeightForCalc(
+  applianceType: string,
+  size?: string,
+  modelName?: string,
+  weightKg?: number | null,
+) {
+  if (weightKg) return { weight: weightKg, fromDB: true };
+  if (modelName && MOCK_MODEL_WEIGHT_DB[modelName]) {
+    return { weight: MOCK_MODEL_WEIGHT_DB[modelName], fromDB: true };
+  }
+
+  const key = normalizeApplianceId(applianceType);
+  const grade = size && APPLIANCE_WEIGHTS[key]?.[size] ? size : "중형";
+  return { weight: APPLIANCE_WEIGHTS[key]?.[grade] ?? 40, fromDB: false };
+}
+
+function normalizeApplianceId(applianceType: string): ApplianceId {
+  if (applianceType === "냉장고") return "refrigerator";
+  if (applianceType === "에어컨") return "air_conditioner";
+  if (applianceType === "전자레인지") return "microwave";
+  if (applianceType === "TV") return "tv";
+  return "washing_machine";
+}
+
+function calculateScrapValue(applianceType: string, weight: number) {
+  const ratios = METAL_RATIOS[normalizeApplianceId(applianceType)];
+  return Math.round(
+    weight * ratios.steel * METAL_PRICES.steel +
+      weight * ratios.aluminum * METAL_PRICES.aluminum +
+      weight * ratios.copper * METAL_PRICES.copper,
+  );
+}
+
+function getNewProductTier(price: number) {
+  if (price >= 1500000) return "premium";
+  if (price >= 700000) return "standard";
+  return "basic";
+}
+
+function calculateFinalCredit(
+  applianceType: string,
+  size: string | undefined,
+  newProductPrice: number,
+  swapCount: number,
+  modelName?: string,
+  weightKg?: number | null,
+) {
+  const { weight, fromDB } = getWeightForCalc(applianceType, size, modelName, weightKg);
+  const scrap = calculateScrapValue(applianceType, weight);
+  const tier = getNewProductTier(newProductPrice);
+  const ratio = CREDIT_RATIO_MATRIX[tier][Math.min(Math.max(swapCount, 1), 3) - 1];
+  const bonus = Math.min(Math.round(newProductPrice * ratio), Math.round(newProductPrice * CAP_RATIO));
+
+  return {
+    total: scrap + bonus,
+    scrap,
+    bonus,
+    ratio,
+    tier,
+    weightFromDB: fromDB,
+  };
+}
+
+function releaseYearToAge(releaseYear: number) {
+  const currentYear = new Date().getFullYear();
+  const age = Math.max(currentYear - releaseYear, 0);
+  if (age <= 1) return "1년 이하";
+  if (age <= 3) return "1-3년";
+  if (age <= 5) return "3-5년";
+  return "5년 이상";
+}
+
+async function postVisionApi<T>(path: string, imageData: string): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: imageData }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Vision API failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function callAnalyzeApi(imageData: string): Promise<RecognizedAppliance> {
+  return postVisionApi<RecognizedAppliance>("/api/analyze", imageData);
+}
+
+async function callLabelApi(imageData: string): Promise<{ brand?: string; modelName?: string }> {
+  return postVisionApi<{ brand?: string; modelName?: string }>("/api/analyze-label", imageData);
+}
+
+async function callLookupSpecsApi(modelName: string): Promise<{
+  brand?: string;
+  capacity?: string;
+  size?: string;
+  releaseYear?: number;
+  weight_kg?: number;
+}> {
+  const response = await fetch("/api/lookup-specs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modelName }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Lookup specs failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export function CapturePanel({
   fileName,
   loading,
@@ -129,14 +284,11 @@ export function CapturePanel({
   const [labelPhotoFileName, setLabelPhotoFileName] = useState("");
   const [exteriorPreviewUrl, setExteriorPreviewUrl] = useState("");
   const [labelPreviewUrl, setLabelPreviewUrl] = useState("");
+  const [capturedImageData, setCapturedImageData] = useState("");
+  const [stickerImageData, setStickerImageData] = useState("");
   const [recognizedInfo, setRecognizedInfo] = useState<RecognizedAppliance>(
     recognitionByAppliance[applianceId],
   );
-
-  const canUseCamera = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(navigator.mediaDevices?.getUserMedia);
-  }, []);
 
   useEffect(() => {
     setRecognizedInfo(recognitionByAppliance[applianceId]);
@@ -172,8 +324,21 @@ export function CapturePanel({
       return undefined;
     }
 
+    if (streamRef.current) {
+      void attachCameraStream(streamRef.current);
+      return () => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+      };
+    }
+
     void startCamera();
-    return () => stopCamera();
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
   }, [loading, phase, target]);
 
   useEffect(() => {
@@ -255,35 +420,79 @@ export function CapturePanel({
     };
   }, [exteriorPreviewUrl, labelPreviewUrl]);
 
-  async function startCamera() {
-    if (!canUseCamera) {
+  function getCameraConstraints(): MediaStreamConstraints {
+    return {
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 1920 },
+      },
+    };
+  }
+
+  function hasCameraApi() {
+    return typeof window !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
+  }
+
+  function getCameraUnavailableMessage() {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return "현재 주소가 보안 주소가 아니라 카메라가 차단됐어요. PC에서는 localhost, 휴대폰에서는 HTTPS 주소로 접속해주세요.";
+    }
+
+    return "이 브라우저에서는 실시간 카메라를 사용할 수 없어요. Chrome 또는 Safari에서 다시 열어주세요.";
+  }
+
+  async function attachCameraStream(stream: MediaStream) {
+    if (!videoRef.current) return;
+
+    videoRef.current.srcObject = stream;
+    videoRef.current.muted = true;
+    videoRef.current.playsInline = true;
+    await videoRef.current.play();
+    setCameraReady(true);
+  }
+
+  async function openCamera(nextTarget: CaptureTarget, nextPhase: Extract<CapturePhase, "camera" | "sticker-camera">) {
+    setTarget(nextTarget);
+    setCameraReady(false);
+    setCameraMessage("");
+
+    if (!hasCameraApi()) {
+      setPhase(nextPhase);
+      setCameraMessage(getCameraUnavailableMessage());
+      return;
+    }
+
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
+      streamRef.current = stream;
+      setPhase(nextPhase);
+    } catch {
+      setPhase(nextPhase);
       setCameraReady(false);
-      setCameraMessage("이 브라우저에서는 실시간 카메라 대신 데모 촬영으로 진행해 주세요.");
+      setCameraMessage("카메라 권한을 허용해야 실시간 촬영을 진행할 수 있습니다.");
+    }
+  }
+
+  async function startCamera() {
+    if (!hasCameraApi()) {
+      setCameraReady(false);
+      setCameraMessage(getCameraUnavailableMessage());
       return;
     }
 
     try {
       stopCamera();
       setCameraMessage("");
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 1920 },
-        },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
 
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      setCameraReady(true);
+      await attachCameraStream(stream);
     } catch {
       setCameraReady(false);
-      setCameraMessage("카메라 권한 또는 HTTPS 환경이 없어 데모 촬영으로 전환할 수 있습니다.");
+      setCameraMessage("카메라 권한을 허용해야 실시간 촬영을 진행할 수 있습니다.");
     }
   }
 
@@ -300,19 +509,21 @@ export function CapturePanel({
     if (target === "exterior") {
       if (exteriorPreviewUrl) URL.revokeObjectURL(exteriorPreviewUrl);
       setExteriorPreviewUrl(dataUrl);
+      setCapturedImageData(dataUrl);
       setExteriorPhotoFileName(generatedFileName);
       onFileChange(generatedFileName);
       setTarget("label");
-      setPhase("camera");
+      setPhase("recognizing");
+      stopCamera();
       return;
     }
 
     if (labelPreviewUrl) URL.revokeObjectURL(labelPreviewUrl);
     setLabelPreviewUrl(dataUrl);
+    setStickerImageData(dataUrl);
     setLabelPhotoFileName(generatedFileName);
-    setPhase("recognizing");
+    setPhase("sticker-recognizing");
     stopCamera();
-    window.setTimeout(() => setPhase("review"), 1000);
   }
 
   function handleCapture() {
@@ -329,11 +540,17 @@ export function CapturePanel({
       return;
     }
 
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     saveCapture(
       canvas.toDataURL("image/jpeg", 0.92),
       `swapit-${target}-${applianceId}-${Date.now()}.jpg`,
     );
+  }
+
+  function handleStickerCapture() {
+    handleCapture();
   }
 
   function createDemoCapture() {
@@ -369,11 +586,12 @@ export function CapturePanel({
     if (labelPreviewUrl) URL.revokeObjectURL(labelPreviewUrl);
     setExteriorPreviewUrl("");
     setLabelPreviewUrl("");
+    setCapturedImageData("");
+    setStickerImageData("");
     setExteriorPhotoFileName("");
     setLabelPhotoFileName("");
     onFileChange("");
-    setTarget("exterior");
-    setPhase("camera");
+    void openCamera("exterior", "camera");
   }
 
   if (loading) {
@@ -386,7 +604,7 @@ export function CapturePanel({
         creditPolicyAgreed={creditPolicyAgreed}
         truthfulnessAgreed={truthfulnessAgreed}
         onCancel={onCancel}
-        onContinue={() => setPhase("camera")}
+        onContinue={() => void openCamera("exterior", "camera")}
         setCreditPolicyAgreed={setCreditPolicyAgreed}
         setTruthfulnessAgreed={setTruthfulnessAgreed}
       />
@@ -435,7 +653,7 @@ export function CapturePanel({
             playsInline
             style={{ filter: "none", backdropFilter: "none" }}
           />
-          {!cameraReady && <DemoCameraFallback />}
+          {!cameraReady && <CameraFallback target="label" />}
           <div className="pointer-events-none absolute inset-0 bg-black/15" />
         </div>
 
@@ -769,6 +987,8 @@ function ReviewView({
   onAnalyze: () => void;
 }) {
   const [showModal, setShowModal] = useState(false);
+  const previewUrl = exteriorPreviewUrl || labelPreviewUrl;
+  const fileName = exteriorPhotoFileName || labelPhotoFileName;
   const credit = calculateFinalCredit(
     recognizedInfo.applianceType,
     recognizedInfo.size,
