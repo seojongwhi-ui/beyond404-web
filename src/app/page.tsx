@@ -183,18 +183,9 @@ export default function HomePage() {
       if (!demoUser) throw new Error("Demo login is required");
 
       const current = swapRequest ?? (await createSwapRequestForUser(demoUser, selectedAppliance));
-      const analyzed = await analyzePhoto(current.id, {
-        fileName: submission.exteriorPhotoFileName,
-        applianceType: submission.applianceType,
-      });
+      const analyzed = await analyzePhoto(current.id, submission);
 
-      return updateAppliance(analyzed.id, {
-        applianceType: submission.applianceType,
-        brand: submission.brand,
-        modelName: submission.modelName,
-        estimatedAge: submission.estimatedAge,
-        exteriorCondition: submission.exteriorCondition,
-      });
+      return updateAppliance(analyzed.id, submission);
     },
     onSuccess: (data) => {
       setSwapRequest(data);

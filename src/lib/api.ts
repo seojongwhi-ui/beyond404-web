@@ -7,11 +7,19 @@ export type DemoUser = {
   thinqUserKey: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  (typeof window === "undefined"
-    ? "http://127.0.0.1:8080"
-    : `${window.location.protocol}//${window.location.hostname}:8080`);
+function resolveApiBaseUrl() {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
+  if (typeof window === "undefined") {
+    return "http://127.0.0.1:8080";
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:8080`;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -73,32 +81,31 @@ export function createSwapRequestForUser(
   });
 }
 
-export type AnalyzePhotoPayload = {
-  fileName: string;
-  imageUrl?: string;
-  applianceType?: string;
+export type CapturePayload = {
+  exteriorPhotoFileName: string;
+  labelPhotoFileName: string;
+  agreedToCreditPolicy: boolean;
+  applianceType: string;
+  brand: string;
+  modelName: string;
+  estimatedAge: string;
+  exteriorCondition: string;
 };
 
-export type UpdateAppliancePayload = {
-  applianceType?: string;
-  brand?: string;
-  modelName?: string;
-  estimatedAge?: string;
-  exteriorCondition?: string;
-};
-
-export function analyzePhoto(id: number, payload: AnalyzePhotoPayload) {
+export function analyzePhoto(id: number, payload: CapturePayload) {
   return request<SwapRequest>(`/api/swap-requests/${id}/photos`, {
     method: "POST",
     body: JSON.stringify({
-      fileName: payload.fileName,
-      imageUrl: payload.imageUrl,
-      applianceType: payload.applianceType ?? "washing_machine",
+      fileName: payload.exteriorPhotoFileName,
+      exteriorPhotoFileName: payload.exteriorPhotoFileName,
+      labelPhotoFileName: payload.labelPhotoFileName,
+      applianceType: payload.applianceType,
+      agreedToCreditPolicy: payload.agreedToCreditPolicy,
     }),
   });
 }
 
-export function updateAppliance(id: number, payload: UpdateAppliancePayload) {
+export function updateAppliance(id: number, payload: CapturePayload) {
   return request<SwapRequest>(`/api/swap-requests/${id}/appliance`, {
     method: "PATCH",
     body: JSON.stringify({
