@@ -1002,12 +1002,10 @@ function SwapItFeatureScreen(props: {
               onClick={
                 props.step === "intro"
                   ? props.onClose
-                  : props.step === "ongoing"
-                    ? props.onReturnHome
-                    : props.onNewRequest
+                  : props.onReturnHome
               }
             >
-              {props.step === "intro" ? "닫기" : props.step === "ongoing" ? <Home size={16} /> : "새 신청"}
+              {props.step === "intro" ? "닫기" : <Home size={16} />}
             </button>
           </div>
           {props.step !== "intro" &&
@@ -1063,7 +1061,6 @@ function SwapItFeatureScreen(props: {
             selectedProductId={props.selectedPurchaseProductId}
             onSelectProduct={(productId) => props.onSelectPurchaseProduct(productId)}
             onContinueToBooking={props.onValuationNext}
-            onSkip={props.onValuationNext}
           />
         ) : null}
         {props.step === "booking" ? (

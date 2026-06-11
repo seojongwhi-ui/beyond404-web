@@ -1,3 +1,13 @@
+export type NearbyCrew = {
+  crewId: number | null;
+  crewName: string;
+  status: string;
+  lat: number;
+  lng: number;
+  distanceMeters: number;
+  assigned: boolean;
+};
+
 export type SwapRequest = {
   id: number;
   customerId?: number;
@@ -12,6 +22,8 @@ export type SwapRequest = {
     aiAnalysisStatus?: string;
     aiConfidence?: number;
     uploadedFileName: string | null;
+    sizeGrade?: string;
+    sizeMetric?: string;
   };
   userConsent?: {
     agreedToCreditPolicy: boolean;
@@ -32,6 +44,22 @@ export type SwapRequest = {
     currency: string;
     basis: string[];
   };
+  rewardEstimate?: {
+    scrapValue: number;
+    creditRate: number;
+    creditCapRate: number;
+    estimatedFinalCredit: number;
+    exchangeCount: number;
+    userTier: string;
+    basis: string[];
+  } | null;
+  selectedProduct?: {
+    productId: string;
+    productName: string;
+    productGrade: string;
+    productPrice: number;
+    sameDayEligible: boolean;
+  } | null;
   booking: {
     bookingDate: string;
     bookingTime: string;
@@ -48,15 +76,14 @@ export type SwapRequest = {
     crewName: string | null;
     address: string | null;
     scheduledAt: string;
-    nearbyCrews?: {
-      crewId: number | null;
-      crewName: string;
-      status: string;
-      lat: number;
-      lng: number;
-      distanceMeters: number;
-      assigned: boolean;
-    }[];
+    requestedAt?: string | null;
+    nearbyCrews?: NearbyCrew[];
+  } | null;
+  crewProfile?: {
+    name: string;
+    photoUrl: string;
+    rating: number;
+    reviewSummary: string[];
   } | null;
   dispatchInfo?: {
     alertMessage: string;
@@ -88,15 +115,7 @@ export type SwapRequest = {
       crewToProcessingCenterMeters: number | null;
       locationLive: boolean;
     } | null;
-    nearbyCrews?: {
-      crewId: number | null;
-      crewName: string;
-      status: string;
-      lat: number;
-      lng: number;
-      distanceMeters: number;
-      assigned: boolean;
-    }[];
+    nearbyCrews?: NearbyCrew[];
     events?: {
       eventType: string;
       message: string;
@@ -113,6 +132,24 @@ export type SwapRequest = {
     amount: number;
     currency: string;
     status: string;
+  } | null;
+  rewardOverview?: {
+    currentCredit: number;
+    userTier: string;
+    exchangeCount: number;
+    nextTier: string;
+    benefits: string[];
+  } | null;
+  deliveryTracking?: {
+    status: string;
+    etaMessage: string;
+    updatedAt?: string | null;
+    stages: {
+      stageKey: string;
+      label: string;
+      completed: boolean;
+      completedAt?: string | null;
+    }[];
   } | null;
   pickupResultReport?: {
     resultType: string;

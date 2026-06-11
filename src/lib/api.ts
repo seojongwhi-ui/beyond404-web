@@ -92,17 +92,6 @@ export function createSwapRequestForUser(
   });
 }
 
-export type CapturePayload = {
-  exteriorPhotoFileName: string;
-  labelPhotoFileName: string;
-  agreedToCreditPolicy: boolean;
-  applianceType: string;
-  brand: string;
-  modelName: string;
-  estimatedAge: string;
-  exteriorCondition: string;
-};
-
 export function analyzePhoto(id: number, payload: CapturePayload) {
   return request<SwapRequest>(`/api/swap-requests/${id}/photos`, {
     method: "POST",
@@ -155,6 +144,28 @@ export function acceptPreValuation(id: number) {
   });
 }
 
+export function selectReplacementProduct(
+  id: number,
+  product: {
+    productId: string;
+    productName: string;
+    productGrade: string;
+    productPrice: number;
+    sameDayEligible?: boolean;
+  },
+) {
+  return request<SwapRequest>(`/api/swap-requests/${id}/replacement-product`, {
+    method: "POST",
+    body: JSON.stringify({
+      productId: product.productId,
+      productName: product.productName,
+      productGrade: product.productGrade,
+      productPrice: product.productPrice,
+      sameDayEligible: product.sameDayEligible ?? false,
+    }),
+  });
+}
+
 export function requestInstantCall(id: number, pickup: PickupLocationPayload) {
   return request<SwapRequest>(`/api/swap-requests/${id}/instant-call`, {
     method: "POST",
@@ -169,6 +180,10 @@ export function requestInstantCall(id: number, pickup: PickupLocationPayload) {
 
 export function getTracking(id: number) {
   return request<SwapRequest>(`/api/swap-requests/${id}/tracking`);
+}
+
+export function getSwapRequest(id: number) {
+  return request<SwapRequest>(`/api/swap-requests/${id}`);
 }
 
 export function requestReReview(id: number, reason: string) {
@@ -186,6 +201,12 @@ export function completeReReview(id: number) {
 
 export function issueCredit(id: number) {
   return request<SwapRequest>(`/api/swap-requests/${id}/credits`, {
+    method: "POST",
+  });
+}
+
+export function advanceDeliveryTracking(id: number) {
+  return request<SwapRequest>(`/api/swap-requests/${id}/delivery/mock-progress`, {
     method: "POST",
   });
 }

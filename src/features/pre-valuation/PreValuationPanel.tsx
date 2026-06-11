@@ -13,7 +13,6 @@ export function PreValuationPanel({
   swapRequest,
   loading = false,
   onOpenPurchase,
-  onNext,
 }: PreValuationPanelProps) {
   const valuation = swapRequest?.preValuation;
   const hasValuation = Boolean(valuation && valuation.minEstimatedValue > 0);
@@ -36,7 +35,7 @@ export function PreValuationPanel({
               {valuation.minEstimatedValue.toLocaleString()} ~ {valuation.maxEstimatedValue.toLocaleString()}원
             </p>
             <p className="mt-2 text-xs font-semibold text-white/70">
-              예상 평균 보상가 {midpoint.toLocaleString()}원을 기준으로 LG 교체 제품 할인에 먼저 반영할 수 있습니다.
+              예상 평균 보상가 {midpoint.toLocaleString()}원을 기준으로 LG 교체 제품 할인에 반영됩니다.
             </p>
           </div>
 
@@ -49,7 +48,7 @@ export function PreValuationPanel({
             />
             <MetricCard
               icon={<ShoppingBag size={18} />}
-              title="교체 할인 기준"
+              title="구매 할인 기준"
               value={`${midpoint.toLocaleString()}원`}
               description="LG 구매 페이지 할인 예상치"
             />
@@ -66,28 +65,19 @@ export function PreValuationPanel({
           <div className="mt-4 rounded-3xl bg-lgred/5 p-4">
             <p className="text-sm font-black text-ink">다음 단계 안내</p>
             <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-              먼저 LG 교체 제품을 고르면 원가와 할인 적용가를 확인한 뒤, 시간 예약 또는 바로콜로 수거/배송을 예약할 수 있습니다.
+              먼저 LG 교체 제품을 선택하면 예상 할인 적용가를 확인할 수 있고, 이후 수거 예약 단계로
+              이어집니다.
             </p>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            <button
-              className="h-12 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-600 disabled:bg-slate-100"
-              disabled={loading}
-              onClick={onNext}
-              type="button"
-            >
-              제품 선택 없이 예약
-            </button>
-            <button
-              className="h-12 rounded-2xl bg-lgred text-sm font-black text-white disabled:bg-slate-300"
-              disabled={loading}
-              onClick={onOpenPurchase}
-              type="button"
-            >
-              LG 구매 페이지 보기
-            </button>
-          </div>
+          <button
+            className="mt-5 h-12 w-full rounded-2xl bg-lgred text-sm font-black text-white disabled:bg-slate-300"
+            disabled={loading}
+            onClick={onOpenPurchase}
+            type="button"
+          >
+            LG 구매 페이지 보기
+          </button>
         </>
       ) : (
         <p className="mt-4 text-sm text-slate-500">

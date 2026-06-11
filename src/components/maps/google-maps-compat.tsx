@@ -47,6 +47,10 @@ function ensureGoogleMaps(apiKey: string) {
     return Promise.reject(new Error("Google Maps is only available in the browser."));
   }
 
+  if (!apiKey.trim()) {
+    return Promise.reject(new Error("Google Maps API key is missing."));
+  }
+
   if (window.google?.maps) {
     return Promise.resolve();
   }
@@ -55,17 +59,23 @@ function ensureGoogleMaps(apiKey: string) {
     return googleMapsPromise;
   }
 
+  const existingScript = document.getElementById("swapit-google-maps-compat") as HTMLScriptElement | null;
+  if (existingScript && loadedApiKey && loadedApiKey !== apiKey) {
+    existingScript.remove();
+    googleMapsPromise = null;
+  }
+
   loadedApiKey = apiKey;
   googleMapsPromise = new Promise<void>((resolve, reject) => {
     const callbackName = "__swapitGoogleMapsCompatInit";
-    const existingScript = document.getElementById("swapit-google-maps-compat") as HTMLScriptElement | null;
+    const currentScript = document.getElementById("swapit-google-maps-compat") as HTMLScriptElement | null;
 
     (window as typeof window & { [key: string]: unknown })[callbackName] = () => {
       resolve();
     };
 
-    if (existingScript) {
-      existingScript.addEventListener("error", () => reject(new Error("Google Maps script failed to load.")), {
+    if (currentScript) {
+      currentScript.addEventListener("error", () => reject(new Error("Google Maps script failed to load.")), {
         once: true,
       });
       return;
@@ -78,7 +88,11 @@ function ensureGoogleMaps(apiKey: string) {
     script.src =
       `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}` +
       `&v=weekly&loading=async&callback=${callbackName}`;
-    script.onerror = () => reject(new Error("Google Maps script failed to load."));
+    script.onerror = () => {
+      googleMapsPromise = null;
+      loadedApiKey = null;
+      reject(new Error("Google Maps script failed to load."));
+    };
     document.head.appendChild(script);
   });
 
