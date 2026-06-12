@@ -12,16 +12,16 @@ function trimTrailingSlash(value: string) {
 }
 
 function resolveApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return "";
+  }
+
   const publicBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (publicBaseUrl) {
     return trimTrailingSlash(publicBaseUrl);
   }
 
-  if (typeof window === "undefined") {
-    return "http://127.0.0.1:8080";
-  }
-
-  return "";
+  return "http://127.0.0.1:8080";
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -191,6 +191,10 @@ export function getTracking(id: number) {
 
 export function getSwapRequest(id: number) {
   return request<SwapRequest>(`/api/swap-requests/${id}`);
+}
+
+export function getLatestSwapRequest(userId: number) {
+  return request<SwapRequest>(`/api/swap-requests/latest?userId=${userId}`);
 }
 
 export function requestReReview(id: number, reason: string) {

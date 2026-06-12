@@ -42,6 +42,7 @@ import {
   confirmBooking,
   createSwapRequestForUser,
   demoLogin,
+  getLatestSwapRequest,
   requestInstantCall,
   updateAppliance,
   type DemoUser,
@@ -134,12 +135,63 @@ export default function HomePage() {
   const [demoUser, setDemoUser] = useState<DemoUser | null>(null);
   const [lastCaptureSubmission, setLastCaptureSubmission] = useState<CaptureSubmission | null>(null);
 
+  function applyRestoredSwapRequest(restored: SwapRequest) {
+    setSwapRequest(restored);
+    setSelectedAppliance(
+      applianceOptions.some((option) => option.id === restored.appliance.applianceType)
+        ? (restored.appliance.applianceType as ApplianceId)
+        : applianceOptions[0].id,
+    );
+
+    if (!restored.pickupRequest && !restored.booking) {
+      return;
+    }
+
+    const pickupStatus = restored.pickupRequest?.status;
+    const pickupType = restored.pickupRequest?.pickupType;
+    const restoredReservationLabel =
+      restored.booking?.bookingDate && restored.booking?.bookingTime
+        ? `${restored.booking.bookingDate} ${restored.booking.bookingTime}`
+        : restored.pickupRequest?.scheduledAt ?? "";
+
+    setActiveReservationRequest(restored);
+    setReservationLabel(restoredReservationLabel);
+    setReservationAddress(restored.booking?.address ?? restored.pickupRequest?.address ?? "");
+
+    if (pickupStatus === "COMPLETED" || restored.status === "REWARD_READY") {
+      setHomeSwapStatus("reviewCompleted");
+      return;
+    }
+
+    if (pickupType === "BOOKING" && pickupStatus === "CONFIRMED") {
+      setHomeSwapStatus("reserved");
+      return;
+    }
+
+    setHomeSwapStatus("pickup");
+  }
+
+  async function restoreLatestSwapRequest(user: DemoUser) {
+    try {
+      const restored = await getLatestSwapRequest(user.userId);
+      applyRestoredSwapRequest(restored);
+    } catch {
+      setSwapRequest(null);
+      setActiveReservationRequest(null);
+      setHomeSwapStatus("none");
+      setReservationLabel("");
+      setReservationAddress("");
+    }
+  }
+
   useEffect(() => {
     const savedUser = window.localStorage.getItem("swapit-demo-user");
     if (!savedUser) return;
 
     try {
-      setDemoUser(JSON.parse(savedUser) as DemoUser);
+      const parsedUser = JSON.parse(savedUser) as DemoUser;
+      setDemoUser(parsedUser);
+      void restoreLatestSwapRequest(parsedUser);
     } catch {
       window.localStorage.removeItem("swapit-demo-user");
     }
@@ -172,6 +224,7 @@ export default function HomePage() {
     onSuccess: (data) => {
       setDemoUser(data);
       window.localStorage.setItem("swapit-demo-user", JSON.stringify(data));
+      void restoreLatestSwapRequest(data);
     },
   });
 
