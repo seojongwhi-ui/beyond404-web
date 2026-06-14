@@ -667,13 +667,15 @@ function DemoLoginScreen({
     phoneNumber.trim().length > 0;
   const canRequestVerification = trimmedEmail.length > 0;
 
-  function getAuthErrorMessage(error: unknown) {
+  function getAuthErrorMessage(error: unknown, mode: "login" | "signup" = authMode) {
     if (!(error instanceof Error)) {
       return null;
     }
 
     if (error.message.includes("auth/email-already-in-use")) {
-      return "이미 가입된 이메일입니다. 로그인 화면에서 로그인해주세요.";
+      return mode === "login"
+        ? "이미 가입된 이메일입니다. 비밀번호를 입력해 로그인해주세요."
+        : "이미 가입된 이메일입니다. 로그인 화면에서 로그인해주세요.";
     }
     if (
       error.message.includes("이미 가입된 전화번호") ||
@@ -719,6 +721,24 @@ function DemoLoginScreen({
     });
   }
 
+  function resetAuthFeedback() {
+    setAuthNotice("");
+    emailLoginMutation.reset();
+    signupMutation.reset();
+    confirmEmailMutation.reset();
+  }
+
+  function showLoginMode() {
+    resetAuthFeedback();
+    setAuthMode("login");
+  }
+
+  function showSignupMode() {
+    resetAuthFeedback();
+    setPendingFirebaseUser(null);
+    setAuthMode("signup");
+  }
+
   const emailLoginMutation = useMutation({
     mutationFn: async () => {
       const auth = getClientAuth();
@@ -754,9 +774,10 @@ function DemoLoginScreen({
   });
 
   const currentError =
-    getAuthErrorMessage(emailLoginMutation.error) ??
-    getAuthErrorMessage(signupMutation.error) ??
-    getAuthErrorMessage(confirmEmailMutation.error);
+    authMode === "login"
+      ? getAuthErrorMessage(emailLoginMutation.error, "login")
+      : getAuthErrorMessage(signupMutation.error, "signup") ??
+        getAuthErrorMessage(confirmEmailMutation.error, "signup");
   const verificationButtonLabel = pendingFirebaseUser
     ? confirmEmailMutation.isPending
       ? "확인 중"
@@ -791,7 +812,11 @@ function DemoLoginScreen({
               <input
                 className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  resetAuthFeedback();
+                  setPendingFirebaseUser(null);
+                }}
                 placeholder="이메일 아이디"
                 type="email"
               />
@@ -825,7 +850,10 @@ function DemoLoginScreen({
               <input
                 className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  resetAuthFeedback();
+                }}
                 placeholder="비밀번호 6자리 이상"
                 type={showPassword ? "text" : "password"}
               />
@@ -844,7 +872,10 @@ function DemoLoginScreen({
             <input
               className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
               value={userName}
-              onChange={(event) => setUserName(event.target.value)}
+              onChange={(event) => {
+                setUserName(event.target.value);
+                resetAuthFeedback();
+              }}
               placeholder="이름"
             />
           </label>
@@ -854,7 +885,10 @@ function DemoLoginScreen({
             <input
               className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
               value={phoneNumber}
-              onChange={(event) => setPhoneNumber(formatPhoneNumber(event.target.value))}
+              onChange={(event) => {
+                setPhoneNumber(formatPhoneNumber(event.target.value));
+                resetAuthFeedback();
+              }}
               inputMode="numeric"
               maxLength={13}
               placeholder="010-0000-0000"
@@ -875,10 +909,7 @@ function DemoLoginScreen({
 
           <button
             className="mt-8 w-full text-center text-[18px] font-black text-[#555]"
-            onClick={() => {
-              setAuthMode("login");
-              setAuthNotice("");
-            }}
+            onClick={showLoginMode}
             type="button"
           >
             로그인 화면으로 돌아가기
@@ -898,7 +929,10 @@ function DemoLoginScreen({
           <input
             className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              resetAuthFeedback();
+            }}
             placeholder="이메일 아이디"
             type="email"
           />
@@ -910,7 +944,10 @@ function DemoLoginScreen({
             <input
               className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                resetAuthFeedback();
+              }}
               placeholder="비밀번호"
               type={showPassword ? "text" : "password"}
             />
@@ -940,7 +977,12 @@ function DemoLoginScreen({
         <button
           className="mt-7 h-16 w-full rounded-2xl bg-lgred text-[22px] font-black text-white disabled:bg-[#e8e8e8] disabled:text-[#b8b8b8]"
           disabled={!firebaseReady || emailLoginMutation.isPending || !canLogin}
-          onClick={() => emailLoginMutation.mutate()}
+          onClick={() => {
+            setAuthNotice("");
+            signupMutation.reset();
+            confirmEmailMutation.reset();
+            emailLoginMutation.mutate();
+          }}
           type="button"
         >
           {emailLoginMutation.isPending ? "ThinQ 사용자 확인 중..." : "로그인"}
@@ -953,10 +995,7 @@ function DemoLoginScreen({
           <span className="text-[#d5d5d5]">|</span>
           <button
             className="font-black text-[#555]"
-            onClick={() => {
-              setAuthMode("signup");
-              setAuthNotice("");
-            }}
+            onClick={showSignupMode}
             type="button"
           >
             회원가입
