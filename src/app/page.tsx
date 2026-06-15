@@ -2,6 +2,14 @@
 
 import { useMutation } from "@tanstack/react-query";
 import {
+  createUserWithEmailAndPassword,
+  reload,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  updateProfile,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import {
   ArrowLeft,
   Bell,
   CalendarCheck,
@@ -38,17 +46,16 @@ import { TrackingPanel } from "@/features/tracking/TrackingPanel";
 import {
   acceptPreValuation,
   analyzePhoto,
-  checkLoginId,
   completeFinalValuation,
   confirmBooking,
   createSwapRequestForUser,
+  firebaseLogin,
   getLatestSwapRequest,
-  login,
   requestInstantCall,
-  signup,
   updateAppliance,
   type DemoUser,
 } from "@/lib/api";
+import { getClientAuth, isFirebaseAuthConfigured } from "@/lib/firebase";
 import type { SwapRequest } from "@/types/swap";
 
 type SwapStep =
@@ -229,12 +236,6 @@ export default function HomePage() {
     void restoreLatestSwapRequest(data);
   }
 
-  const loginMutation = useMutation({
-    mutationFn: ({ loginId, password }: { loginId: string; password: string }) =>
-      login(loginId, password),
-    onSuccess: handleAuthenticatedUser,
-  });
-
   const createMutation = useMutation({
     mutationFn: () => {
       if (!demoUser) throw new Error("Demo login is required");
@@ -414,19 +415,12 @@ export default function HomePage() {
               ) : null}
               {!demoUser ? (
                 <DemoLoginScreen
-                  loading={loginMutation.isPending}
-                  error={
-                    loginMutation.error instanceof Error ? loginMutation.error.message : null
-                  }
                   onBack={() => {
                     setMarketOpened(false);
                     setShowSplash(true);
                     window.setTimeout(() => setShowSplash(false), 900);
                   }}
                   onAuthenticated={handleAuthenticatedUser}
-                  onLogin={(loginId, password) =>
-                    loginMutation.mutate({ loginId, password })
-                  }
                 />
               ) : marketOpened ? (
                 <LgMarketScreen
@@ -653,58 +647,165 @@ function PhoneStatusBar({ isDark, className = "" }: { isDark: boolean; className
 }
 
 function DemoLoginScreen({
-  loading,
-  error,
   onBack,
   onAuthenticated,
-  onLogin,
 }: {
-  loading: boolean;
-  error: string | null;
   onBack: () => void;
   onAuthenticated: (user: DemoUser) => void;
-  onLogin: (loginId: string, password: string) => void;
 }) {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [loginId, setLoginId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberLogin, setRememberLogin] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [userName, setUserName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [loginIdCheck, setLoginIdCheck] = useState<{
-    loginId: string;
-    available: boolean;
-    message: string;
-  } | null>(null);
-  const trimmedLoginId = loginId.trim();
-  const canLogin = trimmedLoginId.length > 0 && password.trim().length > 0;
-  const isLoginIdChecked = loginIdCheck?.loginId === trimmedLoginId && loginIdCheck.available;
+  const [pendingFirebaseUser, setPendingFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [authNotice, setAuthNotice] = useState("");
+  const firebaseReady = isFirebaseAuthConfigured();
+  const trimmedEmail = email.trim().toLowerCase();
+  const canLogin = trimmedEmail.length > 0 && password.trim().length > 0;
   const canSignup =
-    isLoginIdChecked && password.trim().length > 0 && userName.trim().length > 0 && phoneNumber.trim().length > 0;
+    trimmedEmail.length > 0 &&
+    password.trim().length >= 6 &&
+    userName.trim().length > 0 &&
+    phoneNumber.trim().length > 0;
+  const canRequestVerification = trimmedEmail.length > 0;
 
-  const checkLoginIdMutation = useMutation({
-    mutationFn: checkLoginId,
-    onSuccess: (data, requestedLoginId) => {
-      setLoginIdCheck({
-        loginId: requestedLoginId.trim(),
-        available: data.available,
-        message: data.message,
-      });
+  function getAuthErrorMessage(error: unknown, mode: "login" | "signup" = authMode) {
+    if (!(error instanceof Error)) {
+      return null;
+    }
+
+    if (error.message.includes("auth/email-already-in-use")) {
+      return mode === "login"
+        ? "이미 가입된 이메일입니다. 비밀번호를 입력해 로그인해주세요."
+        : "이미 가입된 이메일입니다. 로그인 화면에서 로그인해주세요.";
+    }
+    if (
+      error.message.includes("이미 가입된 전화번호") ||
+      error.message.includes("users_phone_number_unique") ||
+      error.message.includes("phone_number")
+    ) {
+      return "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.";
+    }
+    if (error.message.includes("auth/invalid-email")) {
+      return "이메일 형식이 올바르지 않습니다.";
+    }
+    if (error.message.includes("auth/weak-password")) {
+      return "비밀번호는 6자리 이상으로 입력해주세요.";
+    }
+    if (error.message.includes("auth/invalid-credential") || error.message.includes("auth/user-not-found")) {
+      return "가입 정보가 없습니다. 이메일과 비밀번호를 확인해주세요.";
+    }
+    if (error.message.includes("auth/wrong-password")) {
+      return "비밀번호가 올바르지 않습니다.";
+    }
+    if (error.message.includes("auth/too-many-requests")) {
+      return "로그인 시도가 많습니다. 잠시 후 다시 시도해주세요.";
+    }
+    if (error.message.includes("Email verification is required")) {
+      return "이메일 인증을 먼저 완료해주세요.";
+    }
+    if (error.message.includes("요청 값이 올바르지 않습니다")) {
+      return mode === "signup"
+        ? "입력한 이메일, 비밀번호, 이름, 전화번호를 다시 확인해주세요."
+        : "로그인 정보를 다시 확인해주세요.";
+    }
+
+    return error.message;
+  }
+
+  async function connectVerifiedFirebaseUser(firebaseUser: FirebaseUser, fallbackName = userName, fallbackPhone = phoneNumber) {
+    await reload(firebaseUser);
+    if (!firebaseUser.email) {
+      throw new Error("이메일 정보를 확인할 수 없습니다.");
+    }
+    if (!firebaseUser.emailVerified) {
+      throw new Error("이메일 인증이 아직 완료되지 않았습니다.");
+    }
+
+    return firebaseLogin({
+      firebaseUid: firebaseUser.uid,
+      email: firebaseUser.email,
+      emailVerified: firebaseUser.emailVerified,
+      userName: firebaseUser.displayName || fallbackName.trim() || firebaseUser.email.split("@")[0],
+      phoneNumber: fallbackPhone.trim(),
+    });
+  }
+
+  function resetAuthFeedback() {
+    setAuthNotice("");
+    emailLoginMutation.reset();
+    signupMutation.reset();
+    confirmEmailMutation.reset();
+  }
+
+  function showLoginMode() {
+    resetAuthFeedback();
+    setAuthMode("login");
+  }
+
+  function showSignupMode() {
+    resetAuthFeedback();
+    setPendingFirebaseUser(null);
+    setAuthMode("signup");
+  }
+
+  const emailLoginMutation = useMutation({
+    mutationFn: async () => {
+      const auth = getClientAuth();
+      const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+      return connectVerifiedFirebaseUser(credential.user);
     },
-  });
-
-  const signupMutation = useMutation({
-    mutationFn: () =>
-      signup({
-        loginId: trimmedLoginId,
-        password,
-        userName: userName.trim(),
-        phoneNumber: phoneNumber.trim(),
-      }),
     onSuccess: onAuthenticated,
   });
 
-  const signupError = signupMutation.error instanceof Error ? signupMutation.error.message : null;
+  const signupMutation = useMutation({
+    mutationFn: async () => {
+      const auth = getClientAuth();
+      const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      await updateProfile(credential.user, { displayName: userName.trim() });
+      await sendEmailVerification(credential.user);
+      return credential.user;
+    },
+    onSuccess: (firebaseUser) => {
+      setPendingFirebaseUser(firebaseUser);
+      setAuthNotice("인증 메일을 보냈어요. 메일함에서 링크를 누른 뒤 이메일 칸 오른쪽의 인증 확인을 눌러주세요.");
+    },
+  });
+
+  const confirmEmailMutation = useMutation({
+    mutationFn: async () => {
+      const user = getClientAuth().currentUser ?? pendingFirebaseUser;
+      if (!user) {
+        throw new Error("인증 확인할 사용자가 없습니다. 다시 회원가입을 진행해주세요.");
+      }
+      return connectVerifiedFirebaseUser(user);
+    },
+    onSuccess: onAuthenticated,
+  });
+
+  const currentError =
+    authMode === "login"
+      ? getAuthErrorMessage(emailLoginMutation.error, "login")
+      : getAuthErrorMessage(signupMutation.error, "signup") ??
+        getAuthErrorMessage(confirmEmailMutation.error, "signup");
+  const verificationButtonLabel = pendingFirebaseUser
+    ? confirmEmailMutation.isPending
+      ? "확인 중"
+      : "인증 확인"
+    : signupMutation.isPending
+      ? "발송 중"
+      : "인증메일 보내기";
+  const verificationButtonDisabled =
+    !firebaseReady ||
+    signupMutation.isPending ||
+    confirmEmailMutation.isPending ||
+    (!pendingFirebaseUser && !canRequestVerification);
+
+  const firebaseConfigMessage = !firebaseReady
+    ? "Firebase 이메일 인증 설정이 필요합니다. .env.local에 Firebase 웹앱 설정값을 넣어주세요."
+    : null;
 
   if (authMode === "signup") {
     return (
@@ -712,48 +813,71 @@ function DemoLoginScreen({
         <section>
           <LgElectronicsLogo className="mb-12" />
 
-          <p className="mb-8 text-[30px] font-black tracking-tight text-black">회원가입</p>
+          <p className="mb-2 text-[30px] font-black tracking-tight text-black">ThinQ 계정 만들기</p>
+          <p className="mb-8 text-[15px] font-semibold leading-6 text-slate-500">
+            이메일 인증이 완료된 계정만 SwapIt 신청 데이터와 연결됩니다.
+          </p>
 
           <label className="block border-b-2 border-black pb-4">
-            <span className="sr-only">아이디</span>
+            <span className="sr-only">이메일 아이디</span>
             <div className="flex items-center gap-3">
               <input
                 className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
-                value={loginId}
+                value={email}
                 onChange={(event) => {
-                  setLoginId(event.target.value);
-                  setLoginIdCheck(null);
+                  setEmail(event.target.value);
+                  resetAuthFeedback();
+                  setPendingFirebaseUser(null);
                 }}
-                placeholder="사용할 아이디"
+                placeholder="이메일 아이디"
+                type="email"
               />
               <button
-                className="shrink-0 rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-lgred disabled:text-slate-400"
-                disabled={checkLoginIdMutation.isPending || trimmedLoginId.length < 4}
-                onClick={() => checkLoginIdMutation.mutate(trimmedLoginId)}
+                className="shrink-0 rounded-full bg-lgred px-4 py-2 text-[12px] font-black text-white disabled:bg-[#e8e8e8] disabled:text-[#aaa]"
+                disabled={verificationButtonDisabled}
+                onClick={() => {
+                  resetAuthFeedback();
+                  if (pendingFirebaseUser) {
+                    confirmEmailMutation.mutate();
+                    return;
+                  }
+                  if (!canSignup) {
+                    setAuthNotice("인증 메일을 보내려면 이메일, 비밀번호, 이름, 전화번호를 먼저 입력해주세요.");
+                    return;
+                  }
+                  signupMutation.mutate();
+                }}
                 type="button"
               >
-                {checkLoginIdMutation.isPending ? "확인 중" : "중복확인"}
+                {verificationButtonLabel}
               </button>
             </div>
           </label>
-
-          {loginIdCheck ? (
-            <p className={`mt-2 text-sm font-bold ${loginIdCheck.available ? "text-emerald-600" : "text-red-600"}`}>
-              {loginIdCheck.message}
-            </p>
-          ) : checkLoginIdMutation.error instanceof Error ? (
-            <p className="mt-2 text-sm font-bold text-red-600">아이디 중복확인을 다시 시도해 주세요.</p>
-          ) : null}
+          <p className="mt-3 text-[13px] font-bold leading-5 text-slate-500">
+            이름, 전화번호, 비밀번호를 입력한 뒤 이메일 인증을 진행해주세요.
+          </p>
 
           <label className="mt-8 block border-b border-[#777] pb-3">
             <span className="sr-only">비밀번호</span>
-            <input
-              className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="비밀번호"
-              type="password"
-            />
+            <div className="flex items-center gap-3">
+              <input
+                className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  resetAuthFeedback();
+                }}
+                placeholder="비밀번호 6자리 이상"
+                type={showPassword ? "text" : "password"}
+              />
+              <button
+                className="shrink-0 text-sm font-black text-[#555]"
+                onClick={() => setShowPassword((visible) => !visible)}
+                type="button"
+              >
+                {showPassword ? "숨김" : "표시"}
+              </button>
+            </div>
           </label>
 
           <label className="mt-8 block border-b border-[#777] pb-3">
@@ -761,7 +885,10 @@ function DemoLoginScreen({
             <input
               className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
               value={userName}
-              onChange={(event) => setUserName(event.target.value)}
+              onChange={(event) => {
+                setUserName(event.target.value);
+                resetAuthFeedback();
+              }}
               placeholder="이름"
             />
           </label>
@@ -771,34 +898,31 @@ function DemoLoginScreen({
             <input
               className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
               value={phoneNumber}
-              onChange={(event) => setPhoneNumber(formatPhoneNumber(event.target.value))}
+              onChange={(event) => {
+                setPhoneNumber(formatPhoneNumber(event.target.value));
+                resetAuthFeedback();
+              }}
               inputMode="numeric"
               maxLength={13}
               placeholder="010-0000-0000"
             />
           </label>
 
-          {signupError ? (
+          {authNotice ? (
+            <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold leading-6 text-emerald-700">
+              {authNotice}
+            </p>
+          ) : null}
+
+          {firebaseConfigMessage || currentError ? (
             <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
-              회원가입이 원활하지 않습니다. 입력 정보와 아이디 중복확인을 확인해 주세요.
+              {firebaseConfigMessage ?? currentError}
             </p>
           ) : null}
 
           <button
-            className="mt-8 h-16 w-full rounded-2xl bg-lgred text-[22px] font-black text-white disabled:bg-[#e8e8e8] disabled:text-[#b8b8b8]"
-            disabled={signupMutation.isPending || !canSignup}
-            onClick={() => signupMutation.mutate()}
-            type="button"
-          >
-            {signupMutation.isPending ? "회원가입 중..." : "회원가입"}
-          </button>
-
-          <button
-            className="mt-5 w-full text-center text-[18px] font-black text-[#555]"
-            onClick={() => {
-              setAuthMode("login");
-              setLoginIdCheck(null);
-            }}
+            className="mt-8 w-full text-center text-[18px] font-black text-[#555]"
+            onClick={showLoginMode}
             type="button"
           >
             로그인 화면으로 돌아가기
@@ -813,27 +937,41 @@ function DemoLoginScreen({
       <section className="mx-auto w-full max-w-[336px]">
         <LgElectronicsLogo className="mb-12" />
 
-        <label className="block border-b border-[#dedede] pb-3">
-          <span className="block text-[12px] font-black text-[#4b4b4b]">
-            LG전자 아이디 (이메일 또는 휴대폰 번호)
-          </span>
+        <label className="block border-b-2 border-black pb-4">
+          <span className="sr-only">이메일</span>
           <input
-            className="mt-1 h-8 w-full border-0 bg-transparent text-[14px] font-semibold text-black outline-none placeholder:text-[#9a9a9a]"
-            value={loginId}
-            onChange={(event) => setLoginId(event.target.value)}
-            placeholder="아이디를 입력해 주세요"
+            className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              resetAuthFeedback();
+            }}
+            placeholder="이메일 아이디"
+            type="email"
           />
         </label>
 
-        <label className="mt-5 block border-b border-[#dedede] pb-3">
-          <span className="block text-[12px] font-black text-[#4b4b4b]">비밀번호</span>
-          <input
-            className="mt-1 h-8 w-full border-0 bg-transparent text-[14px] font-semibold text-black outline-none placeholder:text-[#9a9a9a]"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="비밀번호를 입력해 주세요"
-            type="password"
-          />
+        <label className="mt-9 block border-b border-[#777] pb-3">
+          <span className="sr-only">비밀번호</span>
+          <div className="flex items-center gap-3">
+            <input
+              className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                resetAuthFeedback();
+              }}
+              placeholder="비밀번호"
+              type={showPassword ? "text" : "password"}
+            />
+            <button
+              className="shrink-0 text-sm font-black text-[#555]"
+              onClick={() => setShowPassword((visible) => !visible)}
+              type="button"
+            >
+              {showPassword ? "숨김" : "표시"}
+            </button>
+          </div>
         </label>
 
         <button
@@ -851,19 +989,24 @@ function DemoLoginScreen({
           <span>로그인 정보 저장</span>
         </button>
 
-        {error ? (
-          <p className="mt-4 rounded-[10px] bg-red-50 px-4 py-3 text-[12px] font-bold text-red-600">
-            아이디 또는 비밀번호가 올바르지 않거나 연결이 원활하지 않습니다.
+        {firebaseConfigMessage || currentError ? (
+          <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+            {firebaseConfigMessage ?? currentError}
           </p>
         ) : null}
 
         <button
-          className="mt-8 h-[48px] w-full rounded-[8px] bg-[#dedede] text-[16px] font-black text-black disabled:text-[#767676]"
-          disabled={loading || !canLogin}
-          onClick={() => onLogin(trimmedLoginId, password)}
+          className="mt-7 h-16 w-full rounded-2xl bg-lgred text-[22px] font-black text-white disabled:bg-[#e8e8e8] disabled:text-[#b8b8b8]"
+          disabled={!firebaseReady || emailLoginMutation.isPending || !canLogin}
+          onClick={() => {
+            setAuthNotice("");
+            signupMutation.reset();
+            confirmEmailMutation.reset();
+            emailLoginMutation.mutate();
+          }}
           type="button"
         >
-          {loading ? "로그인 중..." : "로그인"}
+          {emailLoginMutation.isPending ? "ThinQ 사용자 확인 중..." : "로그인"}
         </button>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-[12px] font-semibold text-[#4e4e4e]">
@@ -874,11 +1017,8 @@ function DemoLoginScreen({
 
         <div className="mt-3 flex justify-center">
           <button
-            className="text-[12px] font-semibold text-[#4e4e4e] underline underline-offset-2"
-            onClick={() => {
-              setAuthMode("signup");
-              setLoginIdCheck(null);
-            }}
+            className="font-black text-[#555]"
+            onClick={showSignupMode}
             type="button"
           >
             회원가입
