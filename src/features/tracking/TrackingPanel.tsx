@@ -31,6 +31,9 @@ type TrackingViewModel = {
   pickupLocation: Coordinates;
   pickupAddress: string;
   crewLocation: Coordinates | null;
+  crewAddress: string;
+  pickupDistanceLabel: string;
+  hubDistanceLabel: string;
   crewUpdatedAt: string | null;
   processingCenter: { label: string; lat: number; lng: number } | null;
   etaLabel: string;
@@ -89,9 +92,10 @@ function formatDateTime(value?: string | null) {
   }).format(parsed);
 }
 
-function formatCoordinates(location: Coordinates | null) {
-  if (!location) return "-";
-  return `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`;
+function formatDistance(meters?: number | null) {
+  if (meters == null) return "-";
+  if (meters >= 1000) return `${(meters / 1000).toFixed(1)}km`;
+  return `${Math.round(meters)}m`;
 }
 
 function minutesUntil(value?: string | null) {
@@ -199,6 +203,9 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
     pickupLocation: { lat: pickupLat, lng: pickupLng },
     pickupAddress: request.pickupRequest?.address ?? request.booking?.address ?? "수거 위치 정보 없음",
     crewLocation: driverLocation,
+    crewAddress: driverLocation ? "크루 현재 이동 위치" : "크루 위치 확인 중",
+    pickupDistanceLabel: formatDistance(request.tracking.metrics?.crewToPickupMeters),
+    hubDistanceLabel: formatDistance(request.tracking.metrics?.crewToProcessingCenterMeters),
     crewUpdatedAt: request.tracking.driverLocation?.updatedAt ?? null,
     processingCenter: request.tracking.processingCenter ?? null,
     etaLabel: status === "delivered_to_hub" ? "처리 완료" : minutes > 0 ? `${minutes}분 예상` : "곧 도착",
@@ -364,14 +371,14 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
             <InfoCard
               icon={<Navigation size={16} />}
               title="크루 현재 위치"
-              value={formatCoordinates(viewModel.crewLocation)}
-              caption={viewModel.locationMessage}
+              value={viewModel.crewAddress}
+              caption={`수거지까지 ${viewModel.pickupDistanceLabel} · ${viewModel.locationMessage}`}
             />
             <InfoCard
               icon={<MapPin size={16} />}
               title="수거 위치"
               value={viewModel.pickupAddress}
-              caption={formatCoordinates(viewModel.pickupLocation)}
+              caption={`크루와 거리 ${viewModel.pickupDistanceLabel}`}
             />
             <InfoCard
               icon={<Truck size={16} />}
@@ -379,15 +386,11 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
               value={viewModel.routeDurationLabel}
               caption={`현재 경로 기준 거리 ${viewModel.routeDistanceLabel}`}
             />
-            <InfoCard
+            <InfoCarda
               icon={<Warehouse size={16} />}
               title="처리 허브"
-              value={viewModel.processingCenter?.label ?? "배정 후 표시"}
-              caption={
-                viewModel.processingCenter
-                  ? `${viewModel.processingCenter.lat.toFixed(5)}, ${viewModel.processingCenter.lng.toFixed(5)}`
-                  : "허브 좌표 없음"
-              }
+              value={viewModel.processingCenter?.label ?? "배정 후 안내"}
+              caption={`크루와 거리 ${viewModel.hubDistanceLabel}`}
             />
           </div>
         </div>

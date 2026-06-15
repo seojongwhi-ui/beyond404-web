@@ -352,7 +352,7 @@ function InstantCallBooking({
         navigator.geolocation.getCurrentPosition(
           (position) => resolve(position.coords),
           (error) => reject(error),
-          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
         );
       });
 
@@ -385,6 +385,25 @@ function InstantCallBooking({
       void refreshCurrentLocation();
     }
   }, [pickupMethod]);
+
+  const selectMapLocation = async (nextCoords: PickupCoordinates) => {
+    setLocationError("");
+
+    if (pickupMethod === "gps") {
+      setGpsCoords(nextCoords);
+    } else {
+      setManualCoords(nextCoords);
+    }
+
+    let nextAddress = `선택 위치 (${nextCoords.lat.toFixed(5)}, ${nextCoords.lng.toFixed(5)})`;
+    try {
+      nextAddress = await reverseGeocode(nextCoords.lat, nextCoords.lng);
+    } catch {
+      // Map tapping should still update coordinates even if address lookup fails.
+    }
+
+    setPickupAddress(nextAddress);
+  };
 
   const startMatching = async () => {
     setMatching(true);
@@ -450,6 +469,7 @@ function InstantCallBooking({
         <PickupPreviewMap
           addressLabel={mapLabel}
           coordinates={activeCoords}
+          onCoordinateSelect={(coordinates) => void selectMapLocation(coordinates)}
           pinLabel={pickupMethod === "gps" ? "M" : "P"}
         />
       </div>
@@ -520,10 +540,12 @@ function InstantCallBooking({
 function PickupPreviewMap({
   addressLabel,
   coordinates,
+  onCoordinateSelect,
   pinLabel,
 }: {
   addressLabel: string;
   coordinates: PickupCoordinates | null;
+  onCoordinateSelect?: (coordinates: PickupCoordinates) => void;
   pinLabel: string;
 }) {
   if (!coordinates) {
@@ -565,6 +587,9 @@ function PickupPreviewMap({
       )}
       <div className="pointer-events-none absolute left-4 top-4 rounded-full bg-white/95 px-4 py-2 text-sm font-black text-ink shadow">
         {addressLabel}
+      </div>
+      <div className="pointer-events-none absolute left-4 right-4 top-16 rounded-2xl bg-white/90 px-4 py-3 text-center text-xs font-black text-slate-700 shadow">
+        GPS가 어긋나면 지도에서 실제 수거 위치를 눌러 보정하세요.
       </div>
       <div className="pointer-events-none absolute bottom-4 right-4 rounded-full bg-[#1f6fff] px-3 py-2 text-xs font-black text-white shadow-lg">
         <span className="flex items-center gap-1">

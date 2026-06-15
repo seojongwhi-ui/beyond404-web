@@ -2,9 +2,17 @@ import type { SwapRequest } from "@/types/swap";
 
 export type DemoUser = {
   userId: number;
+  loginId?: string | null;
+  email?: string | null;
+  emailVerified?: boolean;
   userName: string;
   phoneNumber: string;
   thinqUserKey: string;
+};
+
+export type LoginIdCheckResponse = {
+  available: boolean;
+  message: string;
 };
 
 function trimTrailingSlash(value: string) {
@@ -12,19 +20,37 @@ function trimTrailingSlash(value: string) {
 }
 
 function resolveApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return "";
+  }
+
   const publicBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (publicBaseUrl) {
     return trimTrailingSlash(publicBaseUrl);
   }
 
-  if (typeof window === "undefined") {
-    return "http://127.0.0.1:8080";
-  }
-
-  return "";
+  return "http://127.0.0.1:8080";
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
+
+async function readErrorMessage(response: Response) {
+  const body = await response.text().catch(() => "");
+  if (!body) {
+    return `API request failed: ${response.status}`;
+  }
+
+  try {
+    const parsed = JSON.parse(body) as {
+      detail?: string;
+      message?: string;
+      error?: string;
+    };
+    return parsed.detail ?? parsed.message ?? parsed.error ?? body;
+  } catch {
+    return body;
+  }
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -36,8 +62,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(body || `API request failed: ${response.status}`);
+    throw new Error(await readErrorMessage(response));
   }
 
   return response.json() as Promise<T>;
@@ -83,6 +108,42 @@ export function demoLogin(userName: string, phoneNumber: string) {
   });
 }
 
+export function login(loginId: string, password: string) {
+  return request<DemoUser>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ loginId, password }),
+  });
+}
+
+export function checkLoginId(loginId: string) {
+  return request<LoginIdCheckResponse>(`/api/auth/check-login-id?loginId=${encodeURIComponent(loginId)}`);
+}
+
+export function signup(payload: {
+  loginId: string;
+  password: string;
+  userName: string;
+  phoneNumber: string;
+}) {
+  return request<DemoUser>("/api/auth/signup", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function firebaseLogin(payload: {
+  firebaseUid: string;
+  email: string;
+  emailVerified: boolean;
+  userName: string;
+  phoneNumber?: string;
+}) {
+  return request<DemoUser>("/api/auth/firebase-login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createSwapRequestForUser(
   user: Pick<DemoUser, "userId" | "userName" | "phoneNumber"> | { userName: string; phoneNumber: string },
   applianceType = "washing_machine",
@@ -105,6 +166,7 @@ export function analyzePhoto(id: number, payload: CapturePayload) {
       fileName: payload.exteriorPhotoFileName,
       exteriorPhotoFileName: payload.exteriorPhotoFileName,
       labelPhotoFileName: payload.labelPhotoFileName,
+      imageUrl: payload.exteriorPhotoFileName,
       applianceType: payload.applianceType,
       agreedToCreditPolicy: payload.agreedToCreditPolicy,
     }),
@@ -190,6 +252,10 @@ export function getTracking(id: number) {
 
 export function getSwapRequest(id: number) {
   return request<SwapRequest>(`/api/swap-requests/${id}`);
+}
+
+export function getLatestSwapRequest(userId: number) {
+  return request<SwapRequest>(`/api/swap-requests/latest?userId=${userId}`);
 }
 
 export function requestReReview(id: number, reason: string) {

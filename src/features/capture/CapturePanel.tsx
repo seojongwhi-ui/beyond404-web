@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 
 type ApplianceId = "washing_machine" | "refrigerator" | "air_conditioner" | "microwave" | "tv";
@@ -262,6 +263,33 @@ async function callLookupSpecsApi(modelName: string): Promise<{
   return response.json();
 }
 
+const GUIDE_FRAME_PROFILES: Record<ApplianceId, { width: string; aspectRatio: string; maxHeight: string }> = {
+  refrigerator: { width: "min(68vw, 260px)", aspectRatio: "9 / 16", maxHeight: "52dvh" },
+  washing_machine: { width: "min(72vw, 285px)", aspectRatio: "4 / 5", maxHeight: "48dvh" },
+  air_conditioner: { width: "min(68vw, 260px)", aspectRatio: "9 / 16", maxHeight: "52dvh" },
+  microwave: { width: "min(82vw, 320px)", aspectRatio: "16 / 10", maxHeight: "34dvh" },
+  tv: { width: "min(84vw, 330px)", aspectRatio: "16 / 9", maxHeight: "34dvh" },
+};
+
+const LABEL_GUIDE_FRAME_STYLE: CSSProperties = {
+  width: "min(82vw, 320px)",
+  aspectRatio: "16 / 9",
+  maxHeight: "32dvh",
+};
+
+function getGuideFrameStyle(applianceId: ApplianceId, target: CaptureTarget): CSSProperties {
+  if (target === "label") {
+    return LABEL_GUIDE_FRAME_STYLE;
+  }
+
+  const profile = GUIDE_FRAME_PROFILES[applianceId];
+  return {
+    width: profile.width,
+    aspectRatio: profile.aspectRatio,
+    maxHeight: profile.maxHeight,
+  };
+}
+
 export function CapturePanel({
   fileName,
   loading,
@@ -425,8 +453,9 @@ export function CapturePanel({
       audio: false,
       video: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 1920 },
+        width: { ideal: 1920, max: 4096 },
+        height: { ideal: 1080, max: 4096 },
+        frameRate: { ideal: 30 },
       },
     };
   }
@@ -540,9 +569,31 @@ export function CapturePanel({
       return;
     }
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const frame = frameRef.current;
+    if (frame) {
+      // 녹색 가이드 박스 영역만 크롭
+      const videoRect = video.getBoundingClientRect();
+      const frameRect = frame.getBoundingClientRect();
+
+      // CSS 픽셀 → 실제 비디오 픽셀 변환 비율
+      const scaleX = video.videoWidth / videoRect.width;
+      const scaleY = video.videoHeight / videoRect.height;
+
+      const sx = Math.max(0, (frameRect.left - videoRect.left) * scaleX);
+      const sy = Math.max(0, (frameRect.top - videoRect.top) * scaleY);
+      const sw = Math.min(frameRect.width * scaleX, video.videoWidth - sx);
+      const sh = Math.min(frameRect.height * scaleY, video.videoHeight - sy);
+
+      canvas.width = Math.round(sw);
+      canvas.height = Math.round(sh);
+      context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    } else {
+      // 가이드 박스 없는 경우(스티커 촬영 등) 전체 프레임
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+
     saveCapture(
       canvas.toDataURL("image/jpeg", 0.92),
       `swapit-${target}-${applianceId}-${Date.now()}.jpg`,
@@ -675,7 +726,11 @@ export function CapturePanel({
           <p className="rounded-full bg-black/55 px-4 py-2 text-[11px] font-black text-white/90">
             글씨가 잘 보이도록 가까이 대주세요
           </p>
-          <div className="h-[150px] w-[310px] rounded-2xl border-2 border-dashed border-white/65" />
+          <div
+            ref={frameRef}
+            className="rounded-2xl border-2 border-dashed border-white/65"
+            style={getGuideFrameStyle(applianceId, "label")}
+          />
           <p className="text-center text-[11px] font-semibold leading-5 text-white/55">
             후면·측면·제품 내부 어디든 라벨이 있는 곳을 찍어주세요
           </p>
@@ -745,16 +800,15 @@ export function CapturePanel({
         </span>
       </div>
 
-      <div className="relative z-10 flex h-[calc(100%-150px)] items-center justify-center px-6">
-        <div className="w-full max-w-[310px] rounded-[28px] border-2 border-[#35ff77] px-5 py-6">
-          <div className="rounded-2xl bg-black/45 px-4 py-3 text-center">
-            <ScanLine className="mx-auto text-white" size={24} />
-            <p className="mt-2 text-sm font-black">{targetDescriptions[target].title}</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-white/70">
-              {targetDescriptions[target].description}
-            </p>
-          </div>
-        </div>
+      <div className="absolute inset-x-0 z-10 flex flex-col items-center justify-center gap-3" style={{ top: 60, bottom: 120 }}>
+        <div
+          ref={frameRef}
+          className="rounded-[20px] border-2 border-[#35ff77]"
+          style={getGuideFrameStyle(applianceId, target)}
+        />
+        <p className="rounded-full bg-black/55 px-4 py-2 text-center text-[11px] font-black text-white/90">
+          {targetDescriptions[target].title}
+        </p>
       </div>
 
       {cameraMessage ? (
@@ -810,68 +864,85 @@ function ConsentView({
   const ready = creditPolicyAgreed && truthfulnessAgreed;
 
   return (
-    <section className="flex h-full flex-col bg-white p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-black text-lgred">STEP 1. 촬영 전 동의</p>
-          <h2 className="mt-1 text-2xl font-black text-ink">촬영과 크레딧 산정 동의</h2>
-        </div>
-        <button className="text-sm font-black text-slate-400" onClick={onCancel} type="button">
-          닫기
-        </button>
-      </div>
-
-      <div className="mt-4 rounded-3xl border border-[#ffd9d9] bg-[#fff7f7] p-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#ffe8e8] text-[#cb2431]">
-            <AlertTriangle size={18} />
-          </span>
-          <div>
-            <p className="text-sm font-black text-ink">사전 고지</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
-              고의적인 손상, 허위 촬영, 허위 기기 정보가 수거 또는 허브 최종 확인 단계에서 발견되면 크레딧 회수 또는 법적 불이익이 발생할 수 있습니다.
-            </p>
+    <section className="flex h-full min-h-0 flex-col bg-cloud">
+      <div className="phone-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-16">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-black text-lgred">STEP 1. 촬영 전 확인</p>
+            <h2 className="mt-2 text-[24px] font-black leading-tight text-ink">
+              진행하기 전에 확인해 주세요
+            </h2>
           </div>
+          <button className="shrink-0 rounded-full px-2 py-1 text-sm font-black text-slate-400" onClick={onCancel} type="button">
+            닫기
+          </button>
         </div>
-      </div>
 
-      <div className="mt-4 space-y-3">
-        <ConsentRow
-          checked={creditPolicyAgreed}
-          title="크레딧 산정 및 회수 정책에 동의합니다"
-          description="최종 감정 결과가 촬영 정보와 다르면 보상 크레딧이 조정될 수 있습니다."
-          onToggle={() => setCreditPolicyAgreed(!creditPolicyAgreed)}
-        />
-        <ConsentRow
-          checked={truthfulnessAgreed}
-          title="고의 훼손/허위 촬영이 아님을 확인합니다"
-          description="허위 신청이 확인될 경우 추후 서비스 이용 제한이 발생할 수 있습니다."
-          onToggle={() => setTruthfulnessAgreed(!truthfulnessAgreed)}
-        />
-      </div>
+        <div className="mt-5 rounded-[20px] bg-white p-2 shadow-sm">
+          <div className="flex items-start gap-3 rounded-[16px] p-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-lgred/10 text-lgred">
+              <AlertTriangle size={18} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-black text-ink">보상 안내 및 동의</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                사진을 바탕으로 AI가 첫 견적을 계산해요. 수거 현장이나 자원 허브에서 확인한 실제 기기 상태에 따라 보상 크레딧이 조정될 수 있습니다.
+              </p>
+            </div>
+          </div>
+          <ConsentRow
+            checked={creditPolicyAgreed}
+            title="[필수] 크레딧 산정 및 안내 기준에 동의합니다."
+            description=""
+            onToggle={() => setCreditPolicyAgreed(!creditPolicyAgreed)}
+          />
+        </div>
 
-      <div className="mt-4 rounded-3xl bg-slate-50 p-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lgred/10 text-lgred">
+        <div className="mt-3 rounded-[20px] bg-white p-2 shadow-sm">
+          <div className="flex items-start gap-3 rounded-[16px] p-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-slate-100 text-slate-500">
+              <ShieldCheck size={18} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-black text-ink">주의사항 및 동의</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                소중한 가전의 모습을 있는 그대로 정직하게 담아주세요. 허위 정보나 고의적인 훼손이 확인될 경우 서비스 이용이 제한될 수 있습니다.
+              </p>
+            </div>
+          </div>
+          <ConsentRow
+            checked={truthfulnessAgreed}
+            title="[필수] 실제 가전 상태와 다름없음을 확인합니다."
+            description=""
+            onToggle={() => setTruthfulnessAgreed(!truthfulnessAgreed)}
+          />
+        </div>
+
+        <div className="mt-3 rounded-[20px] bg-white p-2 shadow-sm">
+          <div className="flex items-start gap-3 rounded-[16px] p-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-lgred/10 text-lgred">
             <ShieldCheck size={18} />
           </span>
-          <div>
-            <p className="text-sm font-black text-ink">다음 단계</p>
+          <div className="min-w-0">
+            <p className="text-sm font-black text-ink">촬영 가이드</p>
             <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-              외관 전체 사진과 뒷 라벨 사진을 순서대로 촬영한 뒤, VLM 인식 결과를 확인하고 감정을 진행합니다.
+              가전의 전체 외관과 뒷면 라벨 스티커를 순서대로 촬영해 주세요. AI가 숨겨진 가치를 바로 분석해 드릴게요!
             </p>
           </div>
         </div>
       </div>
+      </div>
 
+      <div className="shrink-0 bg-cloud px-5 pb-5 pt-2">
       <button
-        className="mt-auto h-12 rounded-2xl bg-lgred text-sm font-black text-white disabled:bg-slate-300"
+        className="h-14 w-full rounded-[16px] bg-lgred text-sm font-black text-white shadow-sm disabled:bg-slate-300 disabled:text-white"
         disabled={!ready}
         onClick={onContinue}
         type="button"
       >
-        동의 후 촬영 시작
+        촬영 시작하기
       </button>
+      </div>
     </section>
   );
 }
@@ -889,8 +960,8 @@ function ConsentRow({
 }) {
   return (
     <button
-      className={`flex w-full items-start gap-3 rounded-3xl border p-4 text-left ${
-        checked ? "border-lgred bg-lgred/5" : "border-slate-200 bg-white"
+      className={`flex w-full items-start gap-3 rounded-[16px] p-3 text-left transition ${
+        checked ? "bg-lgred/5" : "bg-white"
       }`}
       onClick={onToggle}
       type="button"
@@ -902,9 +973,11 @@ function ConsentRow({
       >
         <CheckCircle2 size={14} />
       </span>
-      <span>
+      <span className="min-w-0">
         <span className="block text-sm font-black text-ink">{title}</span>
-        <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{description}</span>
+        {description ? (
+          <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{description}</span>
+        ) : null}
       </span>
     </button>
   );
@@ -928,12 +1001,12 @@ function RecognizingView({ applianceLabel }: { applianceLabel: string }) {
 
   return (
     <section className="flex min-h-full flex-col overflow-hidden bg-[#111318] text-white">
-      <div className="flex items-center justify-between px-5 pt-5">
+      <div className="flex items-start justify-between gap-4 px-5 pt-16">
         <div>
           <p className="text-xs font-black text-white/55">STEP 1-2</p>
           <h2 className="mt-1 text-xl font-black">VLM + OpenAI 분석 중</h2>
         </div>
-        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/80">
+        <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/80">
           {applianceLabel}
         </span>
       </div>
@@ -1000,7 +1073,7 @@ function ReviewView({
   const ready = Boolean(exteriorPhotoFileName && labelPhotoFileName);
 
   return (
-    <section className="phone-scroll flex h-full min-h-0 flex-col overflow-y-auto bg-white p-5 pb-0 shadow-sm">
+    <section className="phone-scroll flex h-full min-h-0 flex-col overflow-y-auto bg-white px-5 pb-0 pt-16 shadow-sm">
       {showModal && previewUrl && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
@@ -1021,12 +1094,12 @@ function ReviewView({
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-black text-lgred">STEP 1-3</p>
           <h2 className="mt-1 text-xl font-black text-ink">AI 인식 결과 확인</h2>
         </div>
-        <span className="rounded-full bg-lgred/10 px-3 py-1 text-xs font-bold text-lgred">
+        <span className="shrink-0 rounded-full bg-lgred/10 px-3 py-1 text-xs font-bold text-lgred">
           {applianceLabel}
         </span>
       </div>
@@ -1204,12 +1277,12 @@ function InfoInput({
 function AnalyzingView({ applianceLabel }: { applianceLabel: string }) {
   return (
     <section className="flex min-h-full flex-col overflow-hidden bg-[#111318] text-white shadow-sm">
-      <div className="flex items-center justify-between px-5 pt-5">
+      <div className="flex items-start justify-between gap-4 px-5 pt-16">
         <div>
           <p className="text-xs font-black text-white/55">STEP 2</p>
           <h2 className="mt-1 text-xl font-black">감정 중</h2>
         </div>
-        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/80">
+        <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/80">
           {applianceLabel}
         </span>
       </div>

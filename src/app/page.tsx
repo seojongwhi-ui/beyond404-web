@@ -2,6 +2,15 @@
 
 import { useMutation } from "@tanstack/react-query";
 import {
+  createUserWithEmailAndPassword,
+  reload,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import {
   ArrowLeft,
   Bell,
   CalendarCheck,
@@ -41,11 +50,13 @@ import {
   completeFinalValuation,
   confirmBooking,
   createSwapRequestForUser,
-  demoLogin,
+  firebaseLogin,
+  getLatestSwapRequest,
   requestInstantCall,
   updateAppliance,
   type DemoUser,
 } from "@/lib/api";
+import { getClientAuth, isFirebaseAuthConfigured } from "@/lib/firebase";
 import type { SwapRequest } from "@/types/swap";
 
 type SwapStep =
@@ -118,10 +129,10 @@ const marketProducts = [
 ] as const;
 
 export default function HomePage() {
-  const [thinQOpened, setThinQOpened] = useState(false);
+  const thinQOpened = true;
   const [swapItOpened, setSwapItOpened] = useState(false);
   const [marketOpened, setMarketOpened] = useState(false);
-  const [isOpening, setIsOpening] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const [swapStep, setSwapStep] = useState<SwapStep>("intro");
   const [selectedAppliance, setSelectedAppliance] = useState<ApplianceId>(applianceOptions[0].id);
   const [fileName, setFileName] = useState("");
@@ -132,16 +143,71 @@ export default function HomePage() {
   const [reservationLabel, setReservationLabel] = useState("");
   const [reservationAddress, setReservationAddress] = useState("");
   const [demoUser, setDemoUser] = useState<DemoUser | null>(null);
+  const [lastCaptureSubmission, setLastCaptureSubmission] = useState<CaptureSubmission | null>(null);
+
+  function applyRestoredSwapRequest(restored: SwapRequest) {
+    setSwapRequest(restored);
+    setSelectedAppliance(
+      applianceOptions.some((option) => option.id === restored.appliance.applianceType)
+        ? (restored.appliance.applianceType as ApplianceId)
+        : applianceOptions[0].id,
+    );
+
+    if (!restored.pickupRequest && !restored.booking) {
+      return;
+    }
+
+    const pickupStatus = restored.pickupRequest?.status;
+    const pickupType = restored.pickupRequest?.pickupType;
+    const restoredReservationLabel =
+      restored.booking?.bookingDate && restored.booking?.bookingTime
+        ? `${restored.booking.bookingDate} ${restored.booking.bookingTime}`
+        : restored.pickupRequest?.scheduledAt ?? "";
+
+    setActiveReservationRequest(restored);
+    setReservationLabel(restoredReservationLabel);
+    setReservationAddress(restored.booking?.address ?? restored.pickupRequest?.address ?? "");
+
+    if (pickupStatus === "COMPLETED" || restored.status === "REWARD_READY") {
+      setHomeSwapStatus("reviewCompleted");
+      return;
+    }
+
+    if (pickupType === "BOOKING" && pickupStatus === "CONFIRMED") {
+      setHomeSwapStatus("reserved");
+      return;
+    }
+
+    setHomeSwapStatus("pickup");
+  }
+
+  async function restoreLatestSwapRequest(user: DemoUser) {
+    try {
+      const restored = await getLatestSwapRequest(user.userId);
+      applyRestoredSwapRequest(restored);
+    } catch {
+      setSwapRequest(null);
+      setActiveReservationRequest(null);
+      setHomeSwapStatus("none");
+      setReservationLabel("");
+      setReservationAddress("");
+    }
+  }
 
   useEffect(() => {
+    const splashTimer = window.setTimeout(() => setShowSplash(false), 1800);
     const savedUser = window.localStorage.getItem("swapit-demo-user");
-    if (!savedUser) return;
+    if (!savedUser) return () => window.clearTimeout(splashTimer);
 
     try {
-      setDemoUser(JSON.parse(savedUser) as DemoUser);
+      const parsedUser = JSON.parse(savedUser) as DemoUser;
+      setDemoUser(parsedUser);
+      void restoreLatestSwapRequest(parsedUser);
     } catch {
       window.localStorage.removeItem("swapit-demo-user");
     }
+
+    return () => window.clearTimeout(splashTimer);
   }, []);
 
   useEffect(() => {
@@ -165,14 +231,11 @@ export default function HomePage() {
     return () => window.clearTimeout(timer);
   }, [homeSwapStatus]);
 
-  const loginMutation = useMutation({
-    mutationFn: ({ userName, phoneNumber }: { userName: string; phoneNumber: string }) =>
-      demoLogin(userName, phoneNumber),
-    onSuccess: (data) => {
-      setDemoUser(data);
-      window.localStorage.setItem("swapit-demo-user", JSON.stringify(data));
-    },
-  });
+  function handleAuthenticatedUser(data: DemoUser) {
+    setDemoUser(data);
+    window.localStorage.setItem("swapit-demo-user", JSON.stringify(data));
+    void restoreLatestSwapRequest(data);
+  }
 
   const createMutation = useMutation({
     mutationFn: () => {
@@ -194,9 +257,6 @@ export default function HomePage() {
     onSuccess: (data) => {
       setSwapRequest(data);
       window.setTimeout(() => setSwapStep("valuation"), 1100);
-    },
-    onError: () => {
-      setSwapStep("capture");
     },
   });
 
@@ -280,13 +340,13 @@ export default function HomePage() {
 
   const error =
     createMutation.error ??
-    analyzeMutation.error ??
     acceptValuationMutation.error ??
     bookingMutation.error ??
     creditMutation.error;
 
   const resetExchangeFlow = () => {
     setFileName("");
+    setLastCaptureSubmission(null);
     setSelectedPurchaseProductId(null);
     setSwapRequest(null);
     setSelectedAppliance(applianceOptions[0].id);
@@ -315,6 +375,12 @@ export default function HomePage() {
 
 
   const resetDemoLogin = () => {
+    try {
+      void signOut(getClientAuth()).catch(() => undefined);
+    } catch {
+      // Firebase 설정이 없는 개발 환경에서도 앱 로그아웃은 계속 진행합니다.
+    }
+
     window.localStorage.removeItem("swapit-demo-user");
     setDemoUser(null);
     setMarketOpened(false);
@@ -327,40 +393,41 @@ export default function HomePage() {
   const isSwapCaptureScreen = Boolean(demoUser) && swapItOpened && swapStep === "capture" && !marketOpened;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#202124] px-3 py-8">
-      <section className="relative w-[min(100%,424px)] rounded-[52px] border-[8px] border-[#090a0f] bg-[#090a0f] p-[3px] shadow-phone">
-        <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 flex h-9 w-[126px] -translate-x-1/2 items-center justify-end rounded-full bg-black pr-3">
+    <main className="min-h-screen bg-cloud md:flex md:items-center md:justify-center md:bg-[#202124] md:px-3 md:py-8">
+      <section className="relative min-h-[100dvh] w-full bg-cloud md:min-h-0 md:w-[min(100%,424px)] md:rounded-[52px] md:border-[8px] md:border-[#090a0f] md:bg-[#090a0f] md:p-[3px] md:shadow-phone">
+        <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 hidden h-9 w-[126px] -translate-x-1/2 items-center justify-end rounded-full bg-black pr-3 md:flex">
           <Camera size={13} className="text-slate-700" />
         </div>
-        <div className="aspect-[402/874] overflow-hidden rounded-[43px] bg-cloud">
-          {thinQOpened ? (
+        <div className="h-[100dvh] overflow-hidden rounded-none bg-cloud md:aspect-[402/874] md:h-auto md:rounded-[43px]">
+          {showSplash ? (
+            <ThinQSplashScreen />
+          ) : thinQOpened ? (
             <div
               className={`relative flex h-full animate-[fadeIn_.18s_ease-out] flex-col ${
                 isSwapIntroScreen
-                  ? "swapit-pattern-bg"
+                  ? "bg-[radial-gradient(circle_at_18%_8%,rgba(255,255,255,.38),transparent_28%),linear-gradient(180deg,#f47783_0%,#e95d6a_48%,#d94a59_100%)]"
                   : isSwapCaptureScreen
                     ? "bg-[#111318]"
-                    : "bg-cloud"
+                    : "bg-white"
               }`}
             >
               {isSwapIntroScreen ? (
                 <IndianPatternOverlay className="z-0" />
               ) : null}
-              {!isSwapCaptureScreen ? <PhoneStatusBar isDark={isSwapIntroScreen} /> : null}
+              {!isSwapCaptureScreen ? (
+                <PhoneStatusBar
+                  isDark={isSwapIntroScreen}
+                  className={isSwapIntroScreen ? "bg-transparent" : demoUser && !marketOpened ? "bg-cloud" : "bg-white"}
+                />
+              ) : null}
               {!demoUser ? (
                 <DemoLoginScreen
-                  loading={loginMutation.isPending}
-                  error={
-                    loginMutation.error instanceof Error ? loginMutation.error.message : null
-                  }
                   onBack={() => {
-                    setIsOpening(false);
                     setMarketOpened(false);
-                    setThinQOpened(false);
+                    setShowSplash(true);
+                    window.setTimeout(() => setShowSplash(false), 900);
                   }}
-                  onLogin={(userName, phoneNumber) =>
-                    loginMutation.mutate({ userName, phoneNumber })
-                  }
+                  onAuthenticated={handleAuthenticatedUser}
                 />
               ) : marketOpened ? (
                 <LgMarketScreen
@@ -371,6 +438,7 @@ export default function HomePage() {
               ) : swapItOpened ? (
                 <SwapItFeatureScreen
                   error={error}
+                  analyzeError={analyzeMutation.error}
                   fileName={fileName}
                   isBusy={isBusy}
                   homeSwapStatus={homeSwapStatus}
@@ -407,9 +475,20 @@ export default function HomePage() {
                   onStart={() => setSwapStep("capture")}
                   onFileChange={setFileName}
                   onAnalyze={(submission) => {
+                    setLastCaptureSubmission(submission);
                     setFileName(submission.exteriorPhotoFileName);
+                    analyzeMutation.reset();
                     setSwapStep("analyzing");
                     analyzeMutation.mutate(submission);
+                  }}
+                  onRetryAnalysis={() => {
+                    if (!lastCaptureSubmission) {
+                      setSwapStep("capture");
+                      return;
+                    }
+                    analyzeMutation.reset();
+                    setSwapStep("analyzing");
+                    analyzeMutation.mutate(lastCaptureSubmission);
                   }}
                   onValuationNext={() => acceptValuationMutation.mutate("booking")}
                   onOpenPurchaseFlow={() => acceptValuationMutation.mutate("market")}
@@ -450,9 +529,9 @@ export default function HomePage() {
                   homeSwapStatus={homeSwapStatus}
                   reservationLabel={reservationLabel}
                   onBackHome={() => {
-                    setIsOpening(false);
                     setMarketOpened(false);
-                    setThinQOpened(false);
+                    setShowSplash(true);
+                    window.setTimeout(() => setShowSplash(false), 900);
                   }}
                   onOpenSwapIt={() => {
                     resetExchangeFlow();
@@ -473,20 +552,40 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            <PhoneHomeScreen
-              isOpening={isOpening}
-              onOpenApp={() => {
-                setIsOpening(true);
-                window.setTimeout(() => {
-                  setThinQOpened(true);
-                  setIsOpening(false);
-                }, 230);
-              }}
-            />
+            <ThinQSplashScreen />
           )}
         </div>
       </section>
     </main>
+  );
+}
+
+function ThinQSplashScreen() {
+  return (
+    <div className="relative flex h-full overflow-hidden bg-[#dfeec1]">
+      <PhoneStatusBar isDark={false} />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,.45),transparent_28%),linear-gradient(180deg,rgba(230,244,203,.72),rgba(214,232,184,.96))]" />
+      <div className="absolute left-[11%] top-[26%] h-[22%] w-[24%] rounded-[32px] bg-white/18 blur-2xl" />
+      <div className="absolute bottom-[12%] left-[6%] h-28 w-12 rounded-t-full bg-[#458f63]" />
+      <div className="absolute bottom-[16%] left-[12%] h-24 w-10 rotate-[-18deg] rounded-t-full bg-[#5ca86f]" />
+      <div className="absolute bottom-[15%] left-[18%] h-20 w-9 rotate-[18deg] rounded-t-full bg-[#6fb97a]" />
+      <div className="absolute bottom-[15%] left-[9%] h-24 w-20 rounded-sm border-[10px] border-white/70 bg-[#b9dbb2]" />
+      <div className="absolute bottom-[20%] left-[9%] h-3 w-16 rounded-full bg-[#70bd83]" />
+      <div className="absolute bottom-[16%] right-[8%] h-[2px] w-[76%] bg-white/80" />
+      <div className="absolute bottom-[17%] right-[18%] h-28 w-[46%] rounded-t-[16px] bg-white/70 shadow-[0_20px_60px_rgba(68,92,58,.18)]" />
+      <div className="absolute bottom-[23%] right-[35%] h-32 w-20 rounded-t-full bg-[#c7473d]" />
+      <div className="absolute bottom-[36%] right-[39%] h-9 w-9 rounded-full bg-[#f0c45d]" />
+      <div className="absolute bottom-[25%] right-[27%] h-28 w-16 rotate-[8deg] rounded-full bg-[#e9f6e4]" />
+      <div className="absolute bottom-[32%] right-[19%] h-24 w-2 rotate-[35deg] rounded-full bg-[#2f3338]" />
+      <div className="absolute bottom-[42%] right-[16%] h-10 w-10 rounded-full border-[5px] border-[#2f3338]" />
+      <div className="absolute bottom-[31%] right-[43%] h-10 w-7 rounded-[8px] bg-[#27313b]" />
+      <div className="absolute left-1/2 top-[42%] z-10 -translate-x-1/2 text-center">
+        <p className="text-[44px] font-black tracking-tight text-white drop-shadow-[0_14px_26px_rgba(126,151,96,.28)]">
+          LG ThinQ
+        </p>
+      </div>
+      <div className="absolute bottom-2 left-1/2 h-1.5 w-32 -translate-x-1/2 rounded-full bg-black/30 md:hidden" />
+    </div>
   );
 }
 
@@ -514,7 +613,7 @@ function previousStep(step: SwapStep): SwapStep {
   }
 }
 
-function PhoneStatusBar({ isDark }: { isDark: boolean }) {
+function PhoneStatusBar({ isDark, className = "" }: { isDark: boolean; className?: string }) {
   const [currentTime, setCurrentTime] = useState(() =>
     new Intl.DateTimeFormat("ko-KR", {
       hour: "2-digit",
@@ -540,7 +639,7 @@ function PhoneStatusBar({ isDark }: { isDark: boolean }) {
 
   return (
     <div
-      className={`relative z-30 flex h-[62px] items-start justify-between px-8 pt-4 text-[12px] font-bold ${
+      className={`relative z-30 hidden h-[62px] items-start justify-between px-8 pt-4 text-[12px] font-bold md:flex ${className} ${
         isDark ? "text-white" : "text-ink"
       }`}
     >
@@ -554,121 +653,414 @@ function PhoneStatusBar({ isDark }: { isDark: boolean }) {
   );
 }
 
-function PhoneHomeScreen({
-  isOpening,
-  onOpenApp,
+function DemoLoginScreen({
+  onBack,
+  onAuthenticated,
 }: {
-  isOpening: boolean;
-  onOpenApp: () => void;
+  onBack: () => void;
+  onAuthenticated: (user: DemoUser) => void;
 }) {
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [pendingFirebaseUser, setPendingFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [authNotice, setAuthNotice] = useState("");
+  const firebaseReady = isFirebaseAuthConfigured();
+  const trimmedEmail = email.trim().toLowerCase();
+  const canLogin = trimmedEmail.length > 0 && password.trim().length > 0;
+  const canSignup =
+    trimmedEmail.length > 0 &&
+    password.trim().length >= 6 &&
+    userName.trim().length > 0 &&
+    phoneNumber.trim().length > 0;
+  const canRequestVerification = trimmedEmail.length > 0;
+
+  function getAuthErrorMessage(error: unknown, mode: "login" | "signup" = authMode) {
+    if (!(error instanceof Error)) {
+      return null;
+    }
+
+    if (error.message.includes("auth/email-already-in-use")) {
+      return mode === "login"
+        ? "이미 가입된 이메일입니다. 비밀번호를 입력해 로그인해주세요."
+        : "이미 가입된 이메일입니다. 로그인 화면에서 로그인해주세요.";
+    }
+    if (
+      error.message.includes("이미 가입된 전화번호") ||
+      error.message.includes("users_phone_number_unique") ||
+      error.message.includes("phone_number")
+    ) {
+      return "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.";
+    }
+    if (error.message.includes("auth/invalid-email")) {
+      return "이메일 형식이 올바르지 않습니다.";
+    }
+    if (error.message.includes("auth/weak-password")) {
+      return "비밀번호는 6자리 이상으로 입력해주세요.";
+    }
+    if (error.message.includes("auth/invalid-credential") || error.message.includes("auth/user-not-found")) {
+      return "이메일 또는 비밀번호가 올바르지 않습니다.";
+    }
+    if (error.message.includes("auth/wrong-password")) {
+      return "비밀번호가 올바르지 않습니다.";
+    }
+    if (error.message.includes("auth/user-disabled")) {
+      return "사용할 수 없는 계정입니다. 다른 계정으로 로그인해주세요.";
+    }
+    if (error.message.includes("auth/too-many-requests")) {
+      return "로그인 시도가 많습니다. 잠시 후 다시 시도해주세요.";
+    }
+    if (error.message.includes("Email verification is required")) {
+      return "이메일 인증을 먼저 완료해주세요.";
+    }
+    if (error.message.includes("요청 값이 올바르지 않습니다")) {
+      return mode === "signup"
+        ? "입력한 이메일, 비밀번호, 이름, 전화번호를 다시 확인해주세요."
+        : "로그인 정보를 다시 확인해주세요.";
+    }
+
+    return error.message;
+  }
+
+  async function connectVerifiedFirebaseUser(firebaseUser: FirebaseUser, fallbackName = userName, fallbackPhone = phoneNumber) {
+    await reload(firebaseUser);
+    if (!firebaseUser.email) {
+      throw new Error("이메일 정보를 확인할 수 없습니다.");
+    }
+    if (!firebaseUser.emailVerified) {
+      throw new Error("이메일 인증이 아직 완료되지 않았습니다.");
+    }
+
+    return firebaseLogin({
+      firebaseUid: firebaseUser.uid,
+      email: firebaseUser.email,
+      emailVerified: firebaseUser.emailVerified,
+      userName: firebaseUser.displayName || fallbackName.trim() || firebaseUser.email.split("@")[0],
+      phoneNumber: fallbackPhone.trim(),
+    });
+  }
+
+  function resetAuthFeedback() {
+    setAuthNotice("");
+    emailLoginMutation.reset();
+    signupMutation.reset();
+    confirmEmailMutation.reset();
+  }
+
+  function showLoginMode() {
+    resetAuthFeedback();
+    setAuthMode("login");
+  }
+
+  function showSignupMode() {
+    resetAuthFeedback();
+    setPendingFirebaseUser(null);
+    setAuthMode("signup");
+  }
+
+  const emailLoginMutation = useMutation({
+    mutationFn: async () => {
+      const auth = getClientAuth();
+      const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+      return connectVerifiedFirebaseUser(credential.user);
+    },
+    onSuccess: onAuthenticated,
+  });
+
+  const signupMutation = useMutation({
+    mutationFn: async () => {
+      const auth = getClientAuth();
+      const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      await updateProfile(credential.user, { displayName: userName.trim() });
+      await sendEmailVerification(credential.user);
+      return credential.user;
+    },
+    onSuccess: (firebaseUser) => {
+      setPendingFirebaseUser(firebaseUser);
+      setAuthNotice("인증 메일을 보냈어요. 메일함에서 링크를 누른 뒤 이메일 칸 오른쪽의 인증 확인을 눌러주세요.");
+    },
+  });
+
+  const confirmEmailMutation = useMutation({
+    mutationFn: async () => {
+      const user = getClientAuth().currentUser ?? pendingFirebaseUser;
+      if (!user) {
+        throw new Error("인증 확인할 사용자가 없습니다. 다시 회원가입을 진행해주세요.");
+      }
+      return connectVerifiedFirebaseUser(user);
+    },
+    onSuccess: onAuthenticated,
+  });
+
+  const currentError =
+    authMode === "login"
+      ? getAuthErrorMessage(emailLoginMutation.error, "login")
+      : getAuthErrorMessage(signupMutation.error, "signup") ??
+        getAuthErrorMessage(confirmEmailMutation.error, "signup");
+  const verificationButtonLabel = pendingFirebaseUser
+    ? confirmEmailMutation.isPending
+      ? "확인 중"
+      : "인증 확인"
+    : signupMutation.isPending
+      ? "발송 중"
+      : "인증메일 보내기";
+  const verificationButtonDisabled =
+    !firebaseReady ||
+    signupMutation.isPending ||
+    confirmEmailMutation.isPending ||
+    (!pendingFirebaseUser && !canRequestVerification);
+
+  const firebaseConfigMessage = !firebaseReady
+    ? "Firebase 이메일 인증 설정이 필요합니다. .env.local에 Firebase 웹앱 설정값을 넣어주세요."
+    : null;
+
+  if (authMode === "signup") {
+    return (
+      <div className="phone-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-6 pb-7 pt-8">
+        <section>
+          <LgElectronicsLogo className="mb-12" />
+
+          <p className="mb-2 text-[30px] font-black tracking-tight text-black">ThinQ 계정 만들기</p>
+          <p className="mb-8 text-[15px] font-semibold leading-6 text-slate-500">
+            이메일 인증이 완료된 계정만 SwapIt 신청 데이터와 연결됩니다.
+          </p>
+
+          <label className="block border-b-2 border-black pb-4">
+            <span className="sr-only">이메일 아이디</span>
+            <div className="flex items-center gap-3">
+              <input
+                className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  resetAuthFeedback();
+                  setPendingFirebaseUser(null);
+                }}
+                placeholder="이메일 아이디"
+                type="email"
+              />
+              <button
+                className="shrink-0 rounded-full bg-lgred px-4 py-2 text-[12px] font-black text-white disabled:bg-[#e8e8e8] disabled:text-[#aaa]"
+                disabled={verificationButtonDisabled}
+                onClick={() => {
+                  resetAuthFeedback();
+                  if (pendingFirebaseUser) {
+                    confirmEmailMutation.mutate();
+                    return;
+                  }
+                  if (!canSignup) {
+                    setAuthNotice("인증 메일을 보내려면 이메일, 비밀번호, 이름, 전화번호를 먼저 입력해주세요.");
+                    return;
+                  }
+                  signupMutation.mutate();
+                }}
+                type="button"
+              >
+                {verificationButtonLabel}
+              </button>
+            </div>
+          </label>
+          <p className="mt-3 text-[13px] font-bold leading-5 text-slate-500">
+            이름, 전화번호, 비밀번호를 입력한 뒤 이메일 인증을 진행해주세요.
+          </p>
+
+          <label className="mt-8 block border-b border-[#777] pb-3">
+            <span className="sr-only">비밀번호</span>
+            <div className="flex items-center gap-3">
+              <input
+                className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  resetAuthFeedback();
+                }}
+                placeholder="비밀번호 6자리 이상"
+                type={showPassword ? "text" : "password"}
+              />
+              <button
+                className="shrink-0 text-sm font-black text-[#555]"
+                onClick={() => setShowPassword((visible) => !visible)}
+                type="button"
+              >
+                {showPassword ? "숨김" : "표시"}
+              </button>
+            </div>
+          </label>
+
+          <label className="mt-8 block border-b border-[#777] pb-3">
+            <span className="sr-only">이름</span>
+            <input
+              className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+              value={userName}
+              onChange={(event) => {
+                setUserName(event.target.value);
+                resetAuthFeedback();
+              }}
+              placeholder="이름"
+            />
+          </label>
+
+          <label className="mt-8 block border-b border-[#777] pb-3">
+            <span className="sr-only">전화번호</span>
+            <input
+              className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+              value={phoneNumber}
+              onChange={(event) => {
+                setPhoneNumber(formatPhoneNumber(event.target.value));
+                resetAuthFeedback();
+              }}
+              inputMode="numeric"
+              maxLength={13}
+              placeholder="010-0000-0000"
+            />
+          </label>
+
+          {authNotice ? (
+            <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold leading-6 text-emerald-700">
+              {authNotice}
+            </p>
+          ) : null}
+
+          {firebaseConfigMessage || currentError ? (
+            <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+              {firebaseConfigMessage ?? currentError}
+            </p>
+          ) : null}
+
+          <button
+            className="mt-8 w-full text-center text-[18px] font-black text-[#555]"
+            onClick={showLoginMode}
+            type="button"
+          >
+            로그인 화면으로 돌아가기
+          </button>
+        </section>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative flex h-full flex-col justify-between bg-[radial-gradient(circle_at_20%_10%,#8aa5ff_0%,transparent_28%),radial-gradient(circle_at_82%_18%,#ffb1d2_0%,transparent_24%),linear-gradient(160deg,#151a34_0%,#283a68_42%,#d8e7ef_100%)] px-6 pb-3">
-      <PhoneStatusBar isDark />
-      <div className="grid grid-cols-4 gap-x-5 gap-y-7 pt-6">
+    <div className="phone-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-6 pb-7 pt-8">
+      <section className="mx-auto w-full max-w-[336px]">
+        <LgElectronicsLogo className="mb-12" />
+
+        <label className="block border-b-2 border-black pb-4">
+          <span className="sr-only">이메일</span>
+          <input
+            className="h-12 w-full border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              resetAuthFeedback();
+            }}
+            placeholder="이메일 아이디"
+            type="email"
+          />
+        </label>
+
+        <label className="mt-9 block border-b border-[#777] pb-3">
+          <span className="sr-only">비밀번호</span>
+          <div className="flex items-center gap-3">
+            <input
+              className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[21px] font-semibold text-black outline-none placeholder:text-[#8a8a8a]"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                resetAuthFeedback();
+              }}
+              placeholder="비밀번호"
+              type={showPassword ? "text" : "password"}
+            />
+            <button
+              className="shrink-0 text-sm font-black text-[#555]"
+              onClick={() => setShowPassword((visible) => !visible)}
+              type="button"
+            >
+              {showPassword ? "숨김" : "표시"}
+            </button>
+          </div>
+        </label>
+
         <button
-          aria-label="LG ThinQ 앱 열기"
-          className="relative flex flex-col items-center gap-2"
-          onClick={onOpenApp}
+          className="mt-3 flex items-center gap-2 text-[12px] font-semibold text-[#6f6f6f]"
+          onClick={() => setRememberLogin((value) => !value)}
+          type="button"
         >
           <span
-            className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-lgred text-white shadow-lg shadow-black/20 transition-transform duration-200 ease-out ${
-              isOpening ? "scale-110 opacity-0" : "scale-100 opacity-100"
+            className={`flex h-[18px] w-[18px] items-center justify-center rounded-full border ${
+              rememberLogin ? "border-lgred bg-lgred" : "border-[#cfcfcf] bg-white"
             }`}
           >
-            <span className="text-[17px] font-black tracking-tight">ThinQ</span>
+            {rememberLogin ? <span className="h-[7px] w-[7px] rounded-full bg-white" /> : null}
           </span>
-          <span className="text-center text-xs font-bold text-white">LG ThinQ</span>
+          <span>로그인 정보 저장</span>
         </button>
-        <HomeIcon label="Clock">
-          <Clock size={28} />
-        </HomeIcon>
-      </div>
-      <div className="mx-auto h-1.5 w-32 rounded-full bg-white/80" />
-      <div
-        className={`pointer-events-none absolute left-[24px] top-[110px] h-16 w-16 rounded-2xl bg-cloud transition-all duration-[230ms] ease-[cubic-bezier(.18,.86,.28,1)] ${
-          isOpening ? "left-0 top-0 h-full w-full rounded-[43px] opacity-100" : "opacity-0"
-        }`}
-      />
-    </div>
-  );
-}
 
-function DemoLoginScreen({
-  loading,
-  error,
-  onBack,
-  onLogin,
-}: {
-  loading: boolean;
-  error: string | null;
-  onBack: () => void;
-  onLogin: (userName: string, phoneNumber: string) => void;
-}) {
-  const [userName, setUserName] = useState("Demo User");
-  const [phoneNumber, setPhoneNumber] = useState("010-4040-2404");
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col px-5 pb-6">
-      <header className="mb-5 flex items-center justify-between">
-        <button
-          aria-label="이전 화면으로 돌아가기"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-sm"
-          onClick={onBack}
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="text-center">
-          <p className="text-xs font-black text-lgred">LG ThinQ</p>
-          <p className="text-[11px] font-semibold text-slate-400">Demo Login</p>
-        </div>
-        <div className="h-9 w-9" />
-      </header>
-
-      <section className="rounded-2xl bg-white p-5 shadow-sm">
-        <p className="text-xs font-black text-lgred">SwapIt 데모 로그인</p>
-        <h1 className="mt-2 text-2xl font-black leading-tight text-ink">
-          신청 데이터를 DB에 저장할 사용자를 확인해 주세요
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-500">
-          입력한 이름과 휴대폰 번호가 users 테이블에 저장되고, 이후 교환 신청과 예약 데이터가 이 사용자와 연결됩니다.
-        </p>
-
-        <label className="mt-6 block text-sm font-black text-ink">
-          이름
-          <input
-            className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 text-base font-bold outline-none focus:border-lgred"
-            value={userName}
-            onChange={(event) => setUserName(event.target.value)}
-            placeholder="이름"
-          />
-        </label>
-
-        <label className="mt-4 block text-sm font-black text-ink">
-          휴대폰 번호
-          <input
-            className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 text-base font-bold outline-none focus:border-lgred"
-            value={phoneNumber}
-            onChange={(event) => setPhoneNumber(event.target.value)}
-            placeholder="010-0000-0000"
-          />
-        </label>
-
-        {error ? (
-          <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
-            로그인이 원활하지 않습니다. 백엔드 서버를 확인해 주세요.
+        {firebaseConfigMessage || currentError ? (
+          <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+            {firebaseConfigMessage ?? currentError}
           </p>
         ) : null}
 
         <button
-          className="mt-6 h-13 w-full rounded-xl bg-lgred text-base font-black text-white disabled:bg-slate-300"
-          disabled={loading || !userName.trim() || !phoneNumber.trim()}
-          onClick={() => onLogin(userName.trim(), phoneNumber.trim())}
+          className="mt-7 h-16 w-full rounded-2xl bg-lgred text-[22px] font-black text-white disabled:bg-[#e8e8e8] disabled:text-[#b8b8b8]"
+          disabled={!firebaseReady || emailLoginMutation.isPending || !canLogin}
+          onClick={() => {
+            setAuthNotice("");
+            signupMutation.reset();
+            confirmEmailMutation.reset();
+            emailLoginMutation.mutate();
+          }}
+          type="button"
         >
-          {loading ? "로그인 중..." : "데모 로그인"}
+          {emailLoginMutation.isPending ? "ThinQ 사용자 확인 중..." : "로그인"}
         </button>
+
+        <div className="mt-6 flex items-center justify-center gap-2 text-[12px] font-semibold text-[#4e4e4e]">
+          <span>아이디 찾기</span>
+          <span className="text-[#bdbdbd]">|</span>
+          <span>비밀번호 재설정</span>
+        </div>
+
+        <div className="mt-3 flex justify-center">
+          <button
+            className="font-black text-[#555]"
+            onClick={showSignupMode}
+            type="button"
+          >
+            회원가입
+          </button>
+        </div>
       </section>
     </div>
   );
+}
+
+function LgElectronicsLogo({ className = "" }: { className?: string }) {
+  return (
+    <div className={`flex items-baseline gap-2 ${className}`}>
+      <span className="text-[34px] font-black tracking-[-0.03em] text-[#777]">LG</span>
+      <span className="text-[34px] font-black tracking-[-0.03em] text-lgred">ThinQ</span>
+    </div>
+  );
+}
+
+function formatPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
 }
 
 function ThinQHomeScreen({
@@ -693,37 +1085,58 @@ function ThinQHomeScreen({
   onLogout: () => void;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 pb-5">
-      <header className="mb-4 flex items-center justify-between">
+    <div className="flex min-h-0 flex-1 flex-col bg-cloud px-4 pb-3">
+      <header className="mb-3 flex items-center justify-between">
         <button
           aria-label="홈 화면으로 돌아가기"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-sm"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-ink"
           onClick={onBackHome}
         >
           <ArrowLeft size={18} />
         </button>
         <div className="text-center">
           <p className="text-xs font-black text-lgred">LG ThinQ</p>
-          <p className="text-[11px] font-semibold text-slate-400">Smart Home</p>
+          <p className="text-[11px] font-semibold text-slate-400">Home</p>
         </div>
         <button
-          className="h-9 rounded-full bg-white px-3 text-[11px] font-black text-lgred shadow-sm"
+          className="h-9 rounded-full px-3 text-[11px] font-black text-slate-500"
           onClick={onLogout}
         >
           로그아웃
         </button>
       </header>
 
-      <div className="phone-scroll flex-1 overflow-y-auto">
-        <section className="rounded-2xl bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">안녕하세요</p>
-          <h1 className="mt-1 text-2xl font-black leading-tight text-ink">오늘의 집 상태</h1>
-          <div className="mt-3 rounded-xl bg-lgred/5 px-3 py-2 text-xs font-bold text-lgred">
-            로그인 사용자 {demoUser.userName} / {demoUser.phoneNumber}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <DeviceCard icon={<WashingMachine size={25} />} label="세탁기" status="대기 중" />
-            <DeviceCard icon={<Refrigerator size={25} />} label="냉장고" status="정상" />
+      <div className="phone-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pb-3">
+        <section className="px-1 pb-1 pt-2">
+          <p className="text-[15px] font-bold text-slate-500">{demoUser.userName}님, 안녕하세요</p>
+          <h1 className="mt-1 whitespace-nowrap text-[17px] font-black leading-tight text-ink sm:text-[18px]">
+            오늘도 우리 집은 안심 맑음 상태입니다.
+          </h1>
+        </section>
+
+        <section className="rounded-[20px] bg-white p-4 shadow-sm">
+          <button className="flex w-full items-center justify-between text-left" onClick={onOpenReservation}>
+            <span>
+              <span className="block text-[13px] font-bold text-slate-500">우리 집 상태</span>
+              <span className="mt-1 block text-[24px] font-black leading-none text-ink">안심</span>
+            </span>
+            <span className="rounded-full bg-lgred/10 px-3 py-1.5 text-[12px] font-black text-lgred">
+              방금 전 업데이트
+            </span>
+          </button>
+          <div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 pt-4">
+            <div>
+              <p className="text-[20px] font-black leading-none text-lgred">2대</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">연결 가전</p>
+            </div>
+            <div className="pl-4">
+              <p className="text-[20px] font-black leading-none text-ink">0건</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">점검 필요</p>
+            </div>
+            <div className="pl-4">
+              <p className="text-[20px] font-black leading-none text-ink">1건</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">추천 케어</p>
+            </div>
           </div>
         </section>
 
@@ -735,36 +1148,45 @@ function ThinQHomeScreen({
           />
         ) : null}
 
-        <section className="mt-4">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-black text-ink">추천 기능</h2>
-            <span className="text-xs font-semibold text-slate-400">For you</span>
+        <section className="rounded-[20px] bg-white p-2 shadow-sm">
+          <div className="flex items-center justify-between px-3 py-2.5">
+            <h2 className="text-sm font-black text-ink">내 디바이스</h2>
+            <button className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-500">
+              전체 2
+            </button>
           </div>
+          <div className="divide-y divide-slate-100">
+            <DeviceCard icon={<WashingMachine size={24} />} label="세탁기" status="대기 중" />
+            <DeviceCard icon={<Refrigerator size={24} />} label="냉장고" status="정상" />
+          </div>
+        </section>
+
+        <section className="rounded-[20px] bg-white p-2 shadow-sm">
           <button
-            className="flex w-full items-center gap-4 rounded-2xl bg-lgdark p-4 text-left text-white shadow-sm"
+            className="flex w-full items-center gap-3 rounded-[16px] p-3 text-left text-ink"
             onClick={onOpenSwapIt}
           >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15">
-              <Recycle size={26} />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-lgred/10 text-lgred">
+              <Recycle size={24} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-black">SwapIt 가전 교환</span>
-              <span className="mt-1 block text-xs leading-5 text-white/70">
-                중고 가전을 수거하고 보상 크레딧으로 전환합니다.
+              <span className="mt-0.5 block truncate text-xs text-slate-500">
+                사진 등록부터 보상, 수거 예약까지
               </span>
             </span>
-            <ChevronRight size={20} />
+            <ChevronRight size={20} className="text-slate-300" />
           </button>
           <button
-            className="mt-3 flex w-full items-center gap-4 rounded-2xl bg-white p-4 text-left text-ink shadow-sm"
+            className="flex w-full items-center gap-3 rounded-[16px] p-3 text-left text-ink"
             onClick={onOpenMarket}
           >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-lgred/10 text-lgred">
-              <ShoppingBag size={25} />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-slate-100 text-slate-600">
+              <ShoppingBag size={24} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-black">LG 가전 마켓</span>
-              <span className="mt-1 block text-xs leading-5 text-slate-500">
+              <span className="mt-0.5 block truncate text-xs text-slate-500">
                 SwapIt 크레딧으로 공식 LG 상품 구매
               </span>
             </span>
@@ -772,6 +1194,25 @@ function ThinQHomeScreen({
           </button>
         </section>
       </div>
+
+      <nav className="grid h-[70px] shrink-0 grid-cols-4 rounded-[22px] bg-white px-2 py-2 shadow-sm">
+        <button className="flex flex-col items-center justify-center gap-1 text-lgred">
+          <Home size={20} />
+          <span className="text-[10px] font-black">홈</span>
+        </button>
+        <button className="flex flex-col items-center justify-center gap-1 text-slate-400">
+          <Refrigerator size={20} />
+          <span className="text-[10px] font-black">디바이스</span>
+        </button>
+        <button className="flex flex-col items-center justify-center gap-1 text-slate-400" onClick={onOpenReview}>
+          <Sparkles size={20} />
+          <span className="text-[10px] font-black">케어</span>
+        </button>
+        <button className="flex flex-col items-center justify-center gap-1 text-slate-400" onClick={onOpenMarket}>
+          <ShoppingBag size={20} />
+          <span className="text-[10px] font-black">메뉴</span>
+        </button>
+      </nav>
     </div>
   );
 }
@@ -887,29 +1328,28 @@ function SwapItStatusCard({
   const Icon = card.icon;
 
   return (
-    <section className="mt-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-black text-ink">吏꾪뻾 以묒씤 ?덉빟</h2>
-        <span className="text-xs font-semibold text-slate-400">Status</span>
-      </div>
+    <section>
       <button
         className={
-          "flex w-full items-center gap-4 rounded-2xl p-4 text-left shadow-sm " +
+          "flex w-full items-center gap-3 rounded-[20px] p-4 text-left shadow-sm " +
           (isCompleted ? "bg-lgred text-white" : "bg-white text-ink")
         }
         onClick={onOpenReservation}
       >
         <span
           className={
-            "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl " +
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] " +
             (isCompleted ? "bg-white/15 text-white" : "bg-lgred/10 text-lgred")
           }
         >
-          <Icon size={25} />
+          <Icon size={22} />
         </span>
         <span className="min-w-0 flex-1">
+          <span className={"mb-0.5 block text-[11px] font-black " + (isCompleted ? "text-white/70" : "text-lgred")}>
+            진행 중인 예약
+          </span>
           <span className="block text-sm font-black">{card.title}</span>
-          <span className={"mt-1 block text-xs leading-5 " + (isCompleted ? "text-white/75" : "text-slate-500")}>
+          <span className={"mt-0.5 block truncate text-xs " + (isCompleted ? "text-white/75" : "text-slate-500")}>
             {card.description}
           </span>
         </span>
@@ -968,6 +1408,7 @@ function getHomeStatusCard(status: HomeSwapStatus, reservationLabel: string) {
 
 function SwapItFeatureScreen(props: {
   error: unknown;
+  analyzeError: unknown;
   fileName: string;
   isBusy: boolean;
   homeSwapStatus: HomeSwapStatus;
@@ -986,6 +1427,7 @@ function SwapItFeatureScreen(props: {
   onStart: () => void;
   onFileChange: (fileName: string) => void;
   onAnalyze: (submission: CaptureSubmission) => void;
+  onRetryAnalysis: () => void;
   onValuationNext: () => void;
   onOpenPurchaseFlow: () => void;
   selectedPurchaseProductId: "washer" | "fridge" | "aircon" | null;
@@ -1073,7 +1515,14 @@ function SwapItFeatureScreen(props: {
             onCancel={props.onBack}
           />
         ) : null}
-        {props.step === "analyzing" ? <AnalyzingPanel applianceLabel={selectedLabel} /> : null}
+        {props.step === "analyzing" ? (
+          <AnalyzingPanel
+            applianceLabel={selectedLabel}
+            error={props.analyzeError instanceof Error ? props.analyzeError.message : null}
+            onRetake={() => props.onBack()}
+            onRetry={props.onRetryAnalysis}
+          />
+        ) : null}
         {props.step === "valuation" ? (
           <PreValuationPanel
             loading={props.isBusy}
@@ -1309,43 +1758,93 @@ function SwapItIntro({
     microwave: "전자레인지",
     tv: "TV",
   };
+  const selectedLabel = applianceLabels[selectedAppliance];
 
   return (
-    <section className="relative min-h-full overflow-hidden bg-transparent px-6 pb-6 pt-0 text-white">
-      <div className="relative z-10 pt-3">
-        <p className="text-xs font-black text-white/80">LG ThinQ</p>
-        <h1 className="mt-5 text-5xl font-black leading-[1.02]">SwapIt</h1>
-        <p className="mt-4 max-w-[285px] text-sm font-semibold leading-6 text-white/85">
-          교환할 가전을 선택하고 사진을 등록하면 AI가 제품 상태를 분석해 예상 보상가를 계산합니다.
-          이후 LG 가전 구매와 수거 예약까지 한 번에 이어서 진행할 수 있습니다.
-        </p>
+    <section className="relative flex min-h-full flex-col overflow-hidden bg-transparent px-4 pb-4 pt-1 text-ink">
+      <div className="pointer-events-none absolute left-[-60px] top-[170px] h-52 w-52 rounded-full bg-white/12 blur-3xl" />
+      <div className="pointer-events-none absolute right-[-70px] top-[22px] h-44 w-44 rounded-full bg-white/16 blur-3xl" />
+
+      <div className="phone-scroll relative z-10 min-h-0 flex-1 overflow-y-auto pb-3">
+        <section className="px-1 pb-4 pt-4 text-white">
+          <p className="text-[13px] font-black text-white/75">LG ThinQ</p>
+          <h1 className="mt-2 text-[34px] font-black leading-none tracking-tight">SwapIt</h1>
+          <p className="mt-3 max-w-[310px] text-sm font-semibold leading-6 text-white/85">
+            교체할 가전을 선택하면 사진 촬영부터 보상가 확인, 수거 예약까지 한 번에 진행할 수 있어요.
+          </p>
+        </section>
+
+        <section className="rounded-[20px] bg-white p-4 shadow-sm">
+          <button className="flex w-full items-center justify-between text-left" onClick={onStart}>
+            <span>
+              <span className="block text-[13px] font-bold text-slate-500">선택한 가전</span>
+              <span className="mt-1 block text-[24px] font-black leading-none text-ink">{selectedLabel}</span>
+            </span>
+            <span className="rounded-full bg-lgred/10 px-3 py-1.5 text-[12px] font-black text-lgred">
+              STEP 1
+            </span>
+          </button>
+          <div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 pt-4">
+            <div className="min-w-0 px-2 first:pl-0">
+              <p className="text-[18px] font-black leading-none text-lgred">사진</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">상태 분석</p>
+            </div>
+            <div className="min-w-0 px-2">
+              <p className="text-[18px] font-black leading-none text-ink">보상</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">크레딧 확인</p>
+            </div>
+            <div className="min-w-0 px-2 last:pr-0">
+              <p className="text-[18px] font-black leading-none text-ink">수거</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">예약 진행</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-3 rounded-[20px] bg-white p-2 shadow-sm">
+          <div className="flex items-center justify-between px-3 py-2.5">
+            <h2 className="text-sm font-black text-ink">교환할 가전 선택</h2>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-500">
+              {applianceOptions.length}개
+            </span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {applianceOptions.map((option) => {
+              const Icon = option.icon;
+              const active = selectedAppliance === option.id;
+
+              return (
+                <button
+                  key={option.id}
+                  className="flex w-full items-center gap-3 rounded-[16px] px-3 py-3 text-left"
+                  onClick={() => onApplianceChange(option.id)}
+                >
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] ${
+                      active ? "bg-lgred text-white" : "bg-lgred/10 text-lgred"
+                    }`}
+                  >
+                    <Icon size={22} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-ink">{applianceLabels[option.id]}</span>
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-black ${
+                      active ? "bg-lgred/10 text-lgred" : "bg-slate-100 text-slate-400"
+                    }`}
+                  >
+                    {active ? "선택됨" : "선택"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       </div>
 
-      <p className="relative z-10 mb-3 mt-10 text-sm font-black text-white">교환할 가전을 선택해 주세요</p>
-      <div className="relative z-10 rounded-[28px] bg-white/95 p-4 text-ink shadow-xl shadow-black/10 backdrop-blur-sm">
-        <div className="grid grid-cols-2 gap-3">
-          {applianceOptions.map((option) => {
-            const Icon = option.icon;
-            const active = selectedAppliance === option.id;
-
-            return (
-              <button
-                key={option.id}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  active
-                    ? "border-lgred bg-lgred text-white"
-                    : "border-slate-200 bg-slate-50 text-ink"
-                }`}
-                onClick={() => onApplianceChange(option.id)}
-              >
-                <Icon size={24} />
-                <span className="mt-3 block text-sm font-black">{applianceLabels[option.id]}</span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="relative z-10 shrink-0 rounded-[22px] bg-white p-2 shadow-sm">
         <button
-          className="mt-4 h-12 w-full rounded-xl bg-lgred text-sm font-black text-white"
+          className="h-14 w-full rounded-[16px] bg-lgred text-sm font-black text-white"
           onClick={onStart}
         >
           사진 등록하러 가기
@@ -1369,10 +1868,16 @@ function DeviceCard({
   status: string;
 }) {
   return (
-    <div className="rounded-xl bg-cloud p-3">
-      <div className="text-lgred">{icon}</div>
-      <p className="mt-2 text-sm font-bold text-ink">{label}</p>
-      <p className="mt-1 text-xs text-slate-500">{status}</p>
+    <div className="flex items-center gap-3 rounded-[16px] px-3 py-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-lgred/10 text-lgred">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-black text-ink">{label}</p>
+        <p className="mt-0.5 text-xs font-semibold text-slate-500">{status}</p>
+      </div>
+      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">
+        보기
+      </span>
+      <ChevronRight size={18} className="text-slate-300" />
     </div>
   );
 }
@@ -1405,7 +1910,9 @@ function WifiGlyph() {
       aria-hidden="true"
       className="h-[11px] w-[15px]"
       fill="none"
+      height="11"
       viewBox="0 0 15 11"
+      width="15"
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
