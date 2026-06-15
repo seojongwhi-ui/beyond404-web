@@ -112,31 +112,6 @@ function createMarkerLabel(label?: string) {
   };
 }
 
-function MapResizer() {
-  const map = useMap();
-
-  useEffect(() => {
-    const container = map.getContainer();
-    const refresh = () => {
-      window.requestAnimationFrame(() => {
-        map.invalidateSize();
-      });
-    };
-
-    refresh();
-    const timer = window.setTimeout(refresh, 180);
-    const observer = new ResizeObserver(() => refresh());
-    observer.observe(container);
-
-    return () => {
-      window.clearTimeout(timer);
-      observer.disconnect();
-    };
-  }, [map]);
-
-  return null;
-}
-
 export function LeafletTrackingMap({
   center,
   markers,
@@ -164,36 +139,51 @@ export function LeafletTrackingMap({
 
     loadGoogleMaps()
       .then((googleApi) => {
-        if (!mounted || !containerRef.current || mapRef.current) {
+        const container = containerRef.current;
+        if (!mounted || !container || mapRef.current) {
           return;
         }
 
-        const map = new googleApi.maps.Map(containerRef.current, {
-          center,
-          clickableIcons: true,
-          disableDefaultUI: false,
-          fullscreenControl: false,
-          gestureHandling: "greedy",
-          mapTypeControl: false,
-          maxZoom,
-          minZoom,
-          scaleControl: true,
-          streetViewControl: false,
-          zoom,
-          zoomControl: true,
+        if (!(container instanceof HTMLElement) || !container.isConnected) {
+          return;
+        }
+
+        const frameId = window.requestAnimationFrame(() => {
+          if (!mounted || !container.isConnected || mapRef.current) {
+            return;
+          }
+
+          const map = new googleApi.maps.Map(container, {
+            center,
+            clickableIcons: true,
+            disableDefaultUI: false,
+            fullscreenControl: false,
+            gestureHandling: "greedy",
+            mapTypeControl: false,
+            maxZoom,
+            minZoom,
+            scaleControl: true,
+            streetViewControl: false,
+            zoom,
+            zoomControl: true,
+          });
+
+          mapRef.current = map;
+          mapInteractionListenersRef.current = [
+            map.addListener("dragstart", () => {
+              userInteractedRef.current = true;
+            }),
+            map.addListener("zoom_changed", () => {
+              if (!autoAdjustingRef.current && initializedRef.current) {
+                userInteractedRef.current = true;
+              }
+            }),
+          ];
         });
 
-        mapRef.current = map;
-        mapInteractionListenersRef.current = [
-          map.addListener("dragstart", () => {
-            userInteractedRef.current = true;
-          }),
-          map.addListener("zoom_changed", () => {
-            if (!autoAdjustingRef.current && initializedRef.current) {
-              userInteractedRef.current = true;
-            }
-          }),
-        ];
+        mapInteractionListenersRef.current.push({
+          remove: () => window.cancelAnimationFrame(frameId),
+        });
       })
       .catch((error: Error) => {
         if (mounted) {

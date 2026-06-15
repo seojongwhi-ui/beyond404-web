@@ -726,7 +726,14 @@ function DemoLoginScreen({
     return error.message;
   }
 
-  async function connectVerifiedFirebaseUser(firebaseUser: FirebaseUser, fallbackName = userName, fallbackPhone = phoneNumber) {
+  async function connectVerifiedFirebaseUser(
+    firebaseUser: FirebaseUser,
+    options: {
+      fallbackName?: string;
+      fallbackPhone?: string;
+      includePhoneNumber?: boolean;
+    } = {},
+  ) {
     await reload(firebaseUser);
     if (!firebaseUser.email) {
       throw new Error("이메일 정보를 확인할 수 없습니다.");
@@ -735,13 +742,17 @@ function DemoLoginScreen({
       throw new Error("이메일 인증이 아직 완료되지 않았습니다.");
     }
 
-    return firebaseLogin({
+    const fallbackName = options.fallbackName ?? userName;
+    const fallbackPhone = (options.fallbackPhone ?? phoneNumber).trim();
+    const payload = {
       firebaseUid: firebaseUser.uid,
       email: firebaseUser.email,
       emailVerified: firebaseUser.emailVerified,
       userName: firebaseUser.displayName || fallbackName.trim() || firebaseUser.email.split("@")[0],
-      phoneNumber: fallbackPhone.trim(),
-    });
+      ...(options.includePhoneNumber && fallbackPhone ? { phoneNumber: fallbackPhone } : {}),
+    };
+
+    return firebaseLogin(payload);
   }
 
   function resetAuthFeedback() {
@@ -791,7 +802,11 @@ function DemoLoginScreen({
       if (!user) {
         throw new Error("인증 확인할 사용자가 없습니다. 다시 회원가입을 진행해주세요.");
       }
-      return connectVerifiedFirebaseUser(user);
+      return connectVerifiedFirebaseUser(user, {
+        includePhoneNumber: true,
+        fallbackName: userName,
+        fallbackPhone: phoneNumber,
+      });
     },
     onSuccess: onAuthenticated,
   });

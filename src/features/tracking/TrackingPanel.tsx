@@ -386,7 +386,7 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
               value={viewModel.routeDurationLabel}
               caption={`현재 경로 기준 거리 ${viewModel.routeDistanceLabel}`}
             />
-            <InfoCarda
+            <InfoCard
               icon={<Warehouse size={16} />}
               title="처리 허브"
               value={viewModel.processingCenter?.label ?? "배정 후 안내"}
