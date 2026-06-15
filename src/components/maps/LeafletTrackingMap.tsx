@@ -309,7 +309,7 @@ export function LeafletTrackingMap({
     return (
       <div className={`${className ?? ""} flex items-center justify-center bg-slate-100 p-5 text-center`}>
         <div>
-          <p className="text-sm font-black text-ink">Google Maps 연결이 필요합니다</p>
+          <p className="text-sm font-bold text-ink">Google Maps 연결이 필요합니다</p>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
             {missingKey
               ? "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY 환경변수를 설정한 뒤 다시 빌드해주세요."
