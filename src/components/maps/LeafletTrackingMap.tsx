@@ -61,6 +61,31 @@ function MapViewport({
   return null;
 }
 
+function MapResizer() {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const refresh = () => {
+      window.requestAnimationFrame(() => {
+        map.invalidateSize();
+      });
+    };
+
+    refresh();
+    const timer = window.setTimeout(refresh, 180);
+    const observer = new ResizeObserver(() => refresh());
+    observer.observe(container);
+
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [map]);
+
+  return null;
+}
+
 export function LeafletTrackingMap({
   center,
   markers,
@@ -81,6 +106,7 @@ export function LeafletTrackingMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <MapResizer />
       {markers.map((marker) => (
         <Marker
           icon={createMarkerIcon(marker.variant, marker.label)}
