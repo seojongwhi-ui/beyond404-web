@@ -85,23 +85,15 @@ export type BookingSelection = {
   bookingTime?: string;
 };
 
-const LeafletTrackingMap = dynamic(
-  () => import("@/components/maps/LeafletTrackingMap").then((module) => module.LeafletTrackingMap),
+const KakaoCanvasMap = dynamic(
+  () => import("@/components/maps/KakaoCanvasMap").then((module) => module.KakaoCanvasMap),
   {
     ssr: false,
     loading: () => <div className="h-full w-full bg-[linear-gradient(180deg,#f5f6f8,#e8edf3)]" />,
   },
 );
 
-const GoogleCanvasMap = dynamic(
-  () => import("@/components/maps/GoogleCanvasMap").then((module) => module.GoogleCanvasMap),
-  {
-    ssr: false,
-    loading: () => <div className="h-full w-full bg-[linear-gradient(180deg,#f5f6f8,#e8edf3)]" />,
-  },
-);
-
-const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ?? "";
+const kakaoMapAppKey = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY?.trim() ?? "";
 
 const defaultAddress = "";
 
@@ -1040,17 +1032,29 @@ function PickupPreviewMap({
 
   return (
     <div className="relative h-[360px] w-full overflow-hidden bg-slate-100">
-      <LeafletTrackingMap
-        center={coordinates}
-        className="h-full w-full"
-        maxZoom={20}
-        markers={[]}
-        onCenterChangeEnd={onCoordinateSelect}
-        onMapClick={onCoordinateSelect}
-        path={[]}
-        syncCenter
-        zoom={19}
-      />
+      {kakaoMapAppKey ? (
+        <KakaoCanvasMap
+          appKey={kakaoMapAppKey}
+          center={coordinates}
+          className="h-full w-full"
+          maxZoom={20}
+          markers={[]}
+          onCenterChangeEnd={onCoordinateSelect}
+          onMapClick={onCoordinateSelect}
+          path={[]}
+          syncCenter
+          zoom={19}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center px-6 text-center">
+          <div>
+              <p className="text-sm font-black text-ink">Kakao Maps connection is required</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                Check NEXT_PUBLIC_KAKAO_MAP_APP_KEY and restart the app.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-[calc(100%-6px)] flex-col items-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-lgred text-white shadow-[0_10px_24px_rgba(193,0,63,0.28)] ring-4 ring-white/90">
           <MapPin size={27} />

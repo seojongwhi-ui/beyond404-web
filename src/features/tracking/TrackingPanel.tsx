@@ -52,17 +52,18 @@ type TrackingViewModel = {
   events: NonNullable<SwapRequest["tracking"]["events"]>;
 };
 
-const LeafletTrackingMap = dynamic(
-  () => import("@/components/maps/LeafletTrackingMap").then((module) => module.LeafletTrackingMap),
+const KakaoCanvasMap = dynamic(
+  () => import("@/components/maps/KakaoCanvasMap").then((module) => module.KakaoCanvasMap),
   { ssr: false },
 );
 
-const GoogleCanvasMap = dynamic(
-  () => import("@/components/maps/GoogleCanvasMap").then((module) => module.GoogleCanvasMap),
-  { ssr: false },
-);
+const kakaoMapAppKey = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY?.trim() ?? "";
 
-const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ?? "";
+type RouteMode = "car" | "walk";
+
+function kakaoWalkRouteUrl(origin: Coordinates, destination: Coordinates) {
+  return `https://map.kakao.com/link/by/walk/crew,${origin.lat},${origin.lng}/pickup,${destination.lat},${destination.lng}`;
+}
 
 const progressSteps = [
   { key: "REQUESTED", label: "요청 접수" },
@@ -444,6 +445,7 @@ function TrackingMap({
   routePath: Coordinates[];
   status: PickupTrackingStatus;
 }) {
+  const [routeMode, setRouteMode] = useState<RouteMode>("car");
   const routeTarget =
     status === "en_route_hub" || status === "delivered_to_hub"
       ? processingCenter
@@ -459,27 +461,70 @@ function TrackingMap({
       : []),
   ];
 
-  const path = routePath.length > 1 ? routePath : [];
-  const hasRoadRoute = path.length > 1;
+  const carPath = routePath.length > 1 ? routePath : [];
+  const walkPath = crewLocation ? [crewLocation, routeTarget] : [];
+  const path = routeMode === "car" ? carPath : walkPath;
+  const hasRoadRoute = routeMode === "car" && carPath.length > 1;
+  const canOpenWalkLink = routeMode === "walk" && crewLocation;
 
   return (
     <div className="mt-5 overflow-hidden rounded-[24px] border border-slate-200 bg-slate-100">
       <div className="relative">
-        <LeafletTrackingMap
-          center={crewLocation ?? routeTarget}
-          className="h-[340px] w-full"
-          markers={markers}
-          path={path}
-          routeColor="#2563eb"
-          routeOpacity={0.74}
-          routeWeight={5}
-        />
-        <div className="pointer-events-none absolute left-3 right-3 top-3 rounded-[18px] bg-white/95 px-4 py-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
-          <p className="text-xs font-black text-lgred">크루 이동 경로</p>
+        {kakaoMapAppKey ? (
+          <KakaoCanvasMap
+            appKey={kakaoMapAppKey}
+            center={crewLocation ?? routeTarget}
+            className="h-[340px] w-full"
+            fitBounds
+            markers={markers}
+            path={path}
+            routeColor={routeMode === "car" ? "#2563eb" : "#64748b"}
+            routeOpacity={routeMode === "car" ? 0.78 : 0.62}
+            routeWeight={routeMode === "car" ? 6 : 4}
+          />
+        ) : (
+          <div className="flex h-[340px] w-full items-center justify-center px-6 text-center">
+            <div>
+              <p className="text-sm font-black text-ink">Kakao Maps connection is required</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                Check NEXT_PUBLIC_KAKAO_MAP_APP_KEY and restart the app.
+              </p>
+            </div>
+          </div>
+        )}
+        <div className="absolute right-3 top-3 z-10 flex rounded-full bg-white/95 p-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
+          {(["car", "walk"] as const).map((mode) => (
+            <button
+              key={mode}
+              className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                routeMode === mode ? "bg-lgred text-white" : "text-slate-500"
+              }`}
+              onClick={() => setRouteMode(mode)}
+              type="button"
+            >
+              {mode === "car" ? "Car" : "Walk"}
+            </button>
+          ))}
+        </div>
+        <div className="pointer-events-none absolute left-3 right-3 top-14 rounded-[18px] bg-white/95 px-4 py-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
+          <p className="text-xs font-black text-lgred">?? ?? ??</p>
           <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
-            {hasRoadRoute ? "도로 기반 경로로 크루 위치를 확인할 수 있어요." : "도로 경로를 계산 중이에요. 크루 위치가 갱신되면 표시됩니다."}
+            {routeMode === "walk"
+              ? "카카오맵에서 도보 경로를 확인할 수 있습니다."
+              : hasRoadRoute
+                ? "차량 도로 경로를 표시하고 있습니다."
+                : "차량 도로 경로를 계산 중입니다."}
           </p>
         </div>
+        {canOpenWalkLink ? (
+          <button
+            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-xs font-black text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]"
+            onClick={() => window.open(kakaoWalkRouteUrl(crewLocation, routeTarget), "_blank", "noopener,noreferrer")}
+            type="button"
+          >
+            Open Kakao walk route
+          </button>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 gap-2 border-t border-slate-200 bg-white p-3 text-xs font-bold text-slate-500 sm:grid-cols-3">
         <MapLegend colorClass="bg-[#2563eb]" label="수거 위치" />
