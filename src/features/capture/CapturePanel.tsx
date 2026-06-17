@@ -314,6 +314,7 @@ export function CapturePanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraStartPromiseRef = useRef<Promise<void> | null>(null);
   const [phase, setPhase] = useState<CapturePhase>("camera");
   const [target, setTarget] = useState<CaptureTarget>("exterior");
   const [cameraReady, setCameraReady] = useState(false);
@@ -470,6 +471,56 @@ export function CapturePanel({
     };
   }
 
+  function getFallbackCameraConstraints(): MediaStreamConstraints {
+    return {
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    };
+  }
+
+  function getBasicCameraConstraints(): MediaStreamConstraints {
+    return {
+      audio: false,
+      video: true,
+    };
+  }
+
+  async function requestCameraStream() {
+    try {
+      return await navigator.mediaDevices.getUserMedia(getCameraConstraints());
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      const canRetryWithRelaxedConstraints = name !== "NotAllowedError" && name !== "PermissionDeniedError";
+
+      if (!canRetryWithRelaxedConstraints) {
+        throw error;
+      }
+
+      try {
+        return await navigator.mediaDevices.getUserMedia(getFallbackCameraConstraints());
+      } catch (fallbackError) {
+        const fallbackName = fallbackError instanceof DOMException ? fallbackError.name : "";
+        const canRetryWithBasicCamera = fallbackName !== "NotAllowedError" && fallbackName !== "PermissionDeniedError";
+
+        if (!canRetryWithBasicCamera) {
+          throw fallbackError;
+        }
+
+        return navigator.mediaDevices.getUserMedia(getBasicCameraConstraints());
+      }
+    }
+  }
+
+  function waitForCameraRelease() {
+    return new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 250);
+    });
+  }
+
   function hasCameraApi() {
     return typeof window !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
   }
@@ -480,6 +531,32 @@ export function CapturePanel({
     }
 
     return "이 브라우저에서는 실시간 카메라를 사용할 수 없어요. Chrome 또는 Safari에서 다시 열어주세요.";
+  }
+
+  function getCameraErrorMessage(error: unknown) {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return getCameraUnavailableMessage();
+    }
+
+    const name = error instanceof DOMException ? error.name : "";
+
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      return "카메라 권한을 허용해야 실시간 촬영을 진행할 수 있습니다.";
+    }
+
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      return "사용 가능한 카메라를 찾지 못했어요. 카메라가 있는 기기에서 다시 시도해주세요.";
+    }
+
+    if (name === "NotReadableError" || name === "TrackStartError") {
+      return "다른 앱이나 브라우저 탭이 카메라를 사용 중일 수 있어요. 카메라를 닫고 다시 시도해주세요.";
+    }
+
+    if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+      return "현재 기기에서 요청한 카메라 설정을 사용할 수 없어요. 다시 시도해주세요.";
+    }
+
+    return "카메라를 시작하지 못했어요. 브라우저 권한과 접속 주소를 확인해주세요.";
   }
 
   async function attachCameraStream(stream: MediaStream) {
@@ -503,16 +580,8 @@ export function CapturePanel({
       return;
     }
 
-    try {
-      stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
-      streamRef.current = stream;
-      setPhase(nextPhase);
-    } catch {
-      setPhase(nextPhase);
-      setCameraReady(false);
-      setCameraMessage("카메라 권한을 허용해야 실시간 촬영을 진행할 수 있습니다.");
-    }
+    stopCamera();
+    setPhase(nextPhase);
   }
 
   async function startCamera() {
@@ -522,16 +591,36 @@ export function CapturePanel({
       return;
     }
 
-    try {
+    if (cameraStartPromiseRef.current) {
+      try {
+        await cameraStartPromiseRef.current;
+      } catch {
+        // The active camera start attempt already updates the UI message.
+      }
+      return;
+    }
+
+    const startPromise = (async () => {
       stopCamera();
+      await waitForCameraRelease();
       setCameraMessage("");
-      const stream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
+      const stream = await requestCameraStream();
 
       streamRef.current = stream;
       await attachCameraStream(stream);
-    } catch {
+    })();
+
+    cameraStartPromiseRef.current = startPromise;
+
+    try {
+      await startPromise;
+    } catch (error) {
       setCameraReady(false);
-      setCameraMessage("카메라 권한을 허용해야 실시간 촬영을 진행할 수 있습니다.");
+      setCameraMessage(getCameraErrorMessage(error));
+    } finally {
+      if (cameraStartPromiseRef.current === startPromise) {
+        cameraStartPromiseRef.current = null;
+      }
     }
   }
 
@@ -699,6 +788,7 @@ export function CapturePanel({
           <video
             ref={videoRef}
             className={`h-full w-full object-cover [backdrop-filter:none] [filter:none] ${cameraReady ? "opacity-100" : "opacity-0"}`}
+            autoPlay
             muted
             playsInline
             style={{ filter: "none", backdropFilter: "none" }}
@@ -785,7 +875,7 @@ export function CapturePanel({
   return (
     <section className="relative h-full overflow-hidden bg-[#111318] text-white">
       <div className="absolute inset-0">
-        <video ref={videoRef} className={`h-full w-full object-cover ${cameraReady ? "opacity-100" : "opacity-0"}`} muted playsInline />
+        <video ref={videoRef} className={`h-full w-full object-cover ${cameraReady ? "opacity-100" : "opacity-0"}`} autoPlay muted playsInline />
         {!cameraReady ? <CameraFallback target={target} /> : null}
         <div className="pointer-events-none absolute inset-0 bg-black/12" />
       </div>
