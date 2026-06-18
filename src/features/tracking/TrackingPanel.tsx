@@ -33,23 +33,17 @@ type TrackingViewModel = {
   pickupAddress: string;
   crewLocation: Coordinates | null;
   crewAddress: string;
-  pickupDistanceLabel: string;
   hubDistanceLabel: string;
   processingCenter: { label: string; lat: number; lng: number } | null;
   etaLabel: string;
-  routeDistanceLabel: string;
-  routeDurationLabel: string;
-  routeDistanceMeters: number | null;
   routePath: Coordinates[];
   crewProfile: {
     name: string;
     photoUrl: string;
     rating: number;
-    reviewSummary: string[];
     phone: string;
   } | null;
   locationMessage: string;
-  events: NonNullable<SwapRequest["tracking"]["events"]>;
 };
 
 type RouteMode = "car" | "walk";
@@ -204,7 +198,6 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
     pickupAddress: request.pickupRequest?.address ?? request.booking?.address ?? "수거 위치 정보 없음",
     crewLocation: driverLocation,
     crewAddress: driverLocation ? "크루 현재 이동 위치" : "크루 위치 확인 중",
-    pickupDistanceLabel: formatDistance(request.tracking.metrics?.crewToPickupMeters),
     hubDistanceLabel: formatDistance(request.tracking.metrics?.crewToProcessingCenterMeters),
     processingCenter: request.tracking.processingCenter ?? null,
     etaLabel: status === "delivered_to_hub" ? "처리 완료" : minutes > 0 ? `${minutes}분 예상` : "곧 도착",
@@ -221,14 +214,12 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
           name: request.crewProfile.name,
           photoUrl: request.crewProfile.photoUrl,
           rating: request.crewProfile.rating,
-          reviewSummary: request.crewProfile.reviewSummary,
           phone: "+82-10-0000-0000",
         }
       : null,
     locationMessage: request.tracking.metrics?.locationLive
       ? `실시간 위치 갱신 ${request.tracking.driverLocation?.updatedAt ? formatDateTime(request.tracking.driverLocation.updatedAt) : ""}`.trim()
       : "최신 위치를 확인하는 중입니다.",
-    events: request.tracking.events ?? [],
   };
 }
 
@@ -261,7 +252,17 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
       try {
         const latest = await getTracking(swapRequest.id);
         if (!disposed) {
-          setLiveRequest(latest);
+          setLiveRequest((current) => {
+            const currentStatus = current ? deriveStatus(current) : "waiting";
+            const latestStatus = deriveStatus(latest);
+            if (
+              (currentStatus === "en_route_pickup" || currentStatus === "crew_assigned") &&
+              latestStatus === "waiting"
+            ) {
+              return current;
+            }
+            return latest;
+          });
           setError(null);
         }
       } catch (requestError) {
@@ -295,7 +296,6 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
     );
   }
 
-  const currentStepIndex = progressIndex(viewModel.status);
   const nextDestination =
     viewModel.status === "en_route_hub" || viewModel.status === "delivered_to_hub"
       ? viewModel.processingCenter
@@ -324,16 +324,13 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
   return (
     <section className="overflow-hidden rounded-[28px] bg-white shadow-sm">
       <div className="bg-[linear-gradient(135deg,#fff5f8,#ffffff_55%,#f8fafc)] p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
+        <div>
+          <div className="min-w-0">
             <span className="inline-flex rounded-full bg-lgred/10 px-3 py-1 text-xs font-bold text-lgred">
               이동 중인 크루 확인
             </span>
-            <h2 className="mt-4 text-[20px] font-bold leading-6 text-ink">{viewModel.title}</h2>
+            <h2 className="mt-4 whitespace-nowrap text-[18px] font-bold leading-6 text-ink">{viewModel.title}</h2>
             <p className="mt-2 text-[13px] font-medium leading-5 text-slate-500">{viewModel.subtitle}</p>
-          </div>
-          <div className="shrink-0 rounded-2xl bg-lgred/10 px-4 py-3 text-right ring-1 ring-lgred/15">
-            <p className="whitespace-nowrap text-[13px] font-bold leading-5 text-lgred">{viewModel.etaLabel}</p>
           </div>
         </div>
       </div>
@@ -362,28 +359,15 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
                 </div>
               </div>
             </div>
-            <div className="flex h-11 items-center rounded-2xl bg-lgred/10 px-4 text-[13px] font-bold text-lgred ring-1 ring-lgred/15">
+            <div className="flex h-11 shrink-0 items-center rounded-2xl bg-lgred/10 px-4 text-[13px] font-bold text-lgred ring-1 ring-lgred/15">
               {viewModel.etaLabel}
             </div>
           </div>
-
-          {viewModel.crewProfile?.reviewSummary?.length ? (
-            <div className="mt-4 rounded-2xl bg-[#fff7f9] px-4 py-3">
-              {viewModel.crewProfile.reviewSummary.slice(0, 2).map((review, index) => (
-                <p key={`${review}-${index}`} className="text-[13px] font-semibold leading-5 text-slate-600">
-                  {review}
-                </p>
-              ))}
-            </div>
-          ) : null}
 
           <TrackingMap
             crewLocation={viewModel.crewLocation}
             pickupLocation={viewModel.pickupLocation}
             processingCenter={viewModel.processingCenter}
-            routeDistanceLabel={viewModel.routeDistanceLabel}
-            routeDistanceMeters={viewModel.routeDistanceMeters}
-            routeDurationLabel={viewModel.routeDurationLabel}
             routePath={viewModel.routePath}
             status={viewModel.status}
           />
@@ -549,18 +533,12 @@ function TrackingMap({
   crewLocation,
   pickupLocation,
   processingCenter,
-  routeDistanceLabel,
-  routeDistanceMeters,
-  routeDurationLabel,
   routePath,
   status,
 }: {
   crewLocation: Coordinates | null;
   pickupLocation: Coordinates;
   processingCenter: { label: string; lat: number; lng: number } | null;
-  routeDistanceLabel: string;
-  routeDistanceMeters: number | null;
-  routeDurationLabel: string;
   routePath: Coordinates[];
   status: PickupTrackingStatus;
 }) {
@@ -622,12 +600,14 @@ function TrackingMap({
             className="relative z-0 h-[340px] w-full"
             fitBounds
             markers={markers}
-            path={path}
-            routeColor={routeMode === "car" ? (hasRoadRoute ? "#2563eb" : "#64748b") : "#64748b"}
-            routeOpacity={routeMode === "car" ? (hasRoadRoute ? 0.78 : 0.52) : 0.62}
-            routeWeight={routeMode === "car" ? (hasRoadRoute ? 6 : 4) : 4}
+            path={carPath}
+            routeColor={hasRoadRoute ? "#2563eb" : "#64748b"}
+            routeOpacity={hasRoadRoute ? 0.78 : 0.52}
+            routeWeight={hasRoadRoute ? 6 : 4}
           />
         ) : (
+          <TrackingFallbackMap crewLocation={crewLocation} pickupLocation={pickupLocation} />
+        )}
           <div className="flex h-[340px] w-full items-center justify-center px-6 text-center">
             <div>
               <p className="text-sm font-black text-ink">Kakao Maps 연결이 필요합니다</p>
@@ -696,25 +676,42 @@ function MapLegend({ colorClass, label }: { colorClass: string; label: string })
   );
 }
 
-function InfoCard({
-  icon,
-  title,
-  value,
-  caption,
+function TrackingFallbackMap({
+  crewLocation,
+  pickupLocation,
 }: {
-  icon: ReactNode;
-  title: string;
-  value: string;
-  caption: string;
+  crewLocation: Coordinates | null;
+  pickupLocation: Coordinates;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <div className="flex items-center gap-2 text-xs font-bold text-lgred">
-        {icon}
-        {title}
+    <div className="relative h-[340px] w-full overflow-hidden bg-[#eef1f4]">
+      <div className="absolute inset-0 opacity-80">
+        <div className="absolute left-[-18%] top-[38%] h-10 w-[140%] rotate-[-18deg] bg-white shadow-sm" />
+        <div className="absolute left-[-18%] top-[60%] h-9 w-[140%] rotate-[-8deg] bg-white shadow-sm" />
+        <div className="absolute left-[38%] top-[-10%] h-[130%] w-9 rotate-[28deg] bg-white shadow-sm" />
+        <div className="absolute left-[7%] top-[12%] h-24 w-28 rounded-[18px] border border-slate-200 bg-slate-100" />
+        <div className="absolute right-[9%] top-[18%] h-20 w-24 rounded-[18px] border border-slate-200 bg-slate-100" />
+        <div className="absolute bottom-[10%] left-[16%] h-24 w-32 rounded-[18px] border border-slate-200 bg-slate-100" />
       </div>
-      <p className="mt-2 text-[13px] font-bold leading-5 text-ink">{value}</p>
-      <p className="mt-1 text-xs font-medium leading-5 text-slate-500">{caption}</p>
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M38 64 C48 56 56 55 66 43" fill="none" stroke="#c0003b" strokeWidth="1.6" strokeDasharray="3 2" opacity="0.7" />
+      </svg>
+      <div className="absolute left-[30%] top-[60%] flex flex-col items-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-white bg-[#2563eb] text-[11px] font-bold text-white shadow-lg">
+          집
+        </div>
+        <span className="mt-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-600 shadow-sm">수거 위치</span>
+      </div>
+      <div className="absolute left-[62%] top-[36%] flex flex-col items-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-white bg-[#dc2626] text-[11px] font-bold text-white shadow-lg">
+          크루
+        </div>
+        <span className="mt-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-600 shadow-sm">이동 중</span>
+      </div>
+      <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500 shadow-sm">
+        지도 연결 전에도 위치 흐름을 확인할 수 있는 미리보기예요. 수거 위치 {pickupLocation.lat.toFixed(4)}, {pickupLocation.lng.toFixed(4)}
+        {crewLocation ? ` · 크루 ${crewLocation.lat.toFixed(4)}, ${crewLocation.lng.toFixed(4)}` : ""}
+      </div>
     </div>
   );
 }
