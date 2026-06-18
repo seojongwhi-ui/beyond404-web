@@ -261,5 +261,5 @@ export function KakaoCanvasMap({
     );
   }
 
-  return <div ref={containerRef} className={className} />;
+  return <div ref={containerRef} className={`${className ?? ""} relative z-0 overflow-hidden`} />;
 }

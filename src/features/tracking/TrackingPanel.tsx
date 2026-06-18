@@ -40,6 +40,7 @@ type TrackingViewModel = {
   etaLabel: string;
   routeDistanceLabel: string;
   routeDurationLabel: string;
+  routeDistanceMeters: number | null;
   routePath: Coordinates[];
   crewProfile: {
     name: string;
@@ -63,6 +64,18 @@ type RouteMode = "car" | "walk";
 
 function kakaoWalkRouteUrl(origin: Coordinates, destination: Coordinates) {
   return `https://map.kakao.com/link/by/walk/crew,${origin.lat},${origin.lng}/pickup,${destination.lat},${destination.lng}`;
+}
+
+
+function formatWalkDuration(distanceMeters?: number | null) {
+  if (distanceMeters == null) return "-";
+  const minutes = Math.max(1, Math.round(distanceMeters / 80));
+  return `${minutes} min`;
+}
+
+function formatCalories(distanceMeters?: number | null) {
+  if (distanceMeters == null) return "-";
+  return `${Math.max(1, Math.round(distanceMeters * 0.044))} kcal`;
 }
 
 const progressSteps = [
@@ -205,6 +218,7 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
     etaLabel: status === "delivered_to_hub" ? "처리 완료" : minutes > 0 ? `${minutes}분 예상` : "곧 도착",
     routeDistanceLabel: request.tracking.route?.distanceLabel ?? "-",
     routeDurationLabel: request.tracking.route?.durationLabel ?? "-",
+    routeDistanceMeters: request.tracking.route?.distanceMeters ?? request.tracking.metrics?.crewToPickupMeters ?? null,
     routePath,
     crewProfile: request.crewProfile
       ? {
@@ -339,6 +353,9 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
             crewLocation={viewModel.crewLocation}
             pickupLocation={viewModel.pickupLocation}
             processingCenter={viewModel.processingCenter}
+            routeDistanceLabel={viewModel.routeDistanceLabel}
+            routeDistanceMeters={viewModel.routeDistanceMeters}
+            routeDurationLabel={viewModel.routeDurationLabel}
             routePath={viewModel.routePath}
             status={viewModel.status}
           />
@@ -436,12 +453,18 @@ function TrackingMap({
   crewLocation,
   pickupLocation,
   processingCenter,
+  routeDistanceLabel,
+  routeDistanceMeters,
+  routeDurationLabel,
   routePath,
   status,
 }: {
   crewLocation: Coordinates | null;
   pickupLocation: Coordinates;
   processingCenter: { label: string; lat: number; lng: number } | null;
+  routeDistanceLabel: string;
+  routeDistanceMeters: number | null;
+  routeDurationLabel: string;
   routePath: Coordinates[];
   status: PickupTrackingStatus;
 }) {
@@ -461,26 +484,39 @@ function TrackingMap({
       : []),
   ];
 
-  const carPath = routePath.length > 1 ? routePath : [];
-  const walkPath = crewLocation ? [crewLocation, routeTarget] : [];
-  const path = routeMode === "car" ? carPath : walkPath;
+  const [lockedCarPath, setLockedCarPath] = useState<Coordinates[]>([]);
+
+  useEffect(() => {
+    setLockedCarPath([]);
+  }, [routeTarget.lat, routeTarget.lng]);
+
+  useEffect(() => {
+    if (routePath.length <= 1) return;
+    setLockedCarPath((previous) => (previous.length > 1 ? previous : routePath));
+  }, [routePath]);
+
+  const carPath = lockedCarPath.length > 1 ? lockedCarPath : [];
+  const path = routeMode === "car" ? carPath : [];
   const hasRoadRoute = routeMode === "car" && carPath.length > 1;
+  const isRouteSearching = routeMode === "car" && !hasRoadRoute && Boolean(crewLocation);
   const canOpenWalkLink = routeMode === "walk" && crewLocation;
+  const calorieLabel = formatCalories(routeDistanceMeters);
+  const routeMetric = [routeDistanceLabel, routeDurationLabel, calorieLabel].filter((value) => value && value !== "-").join(" · ");
 
   return (
     <div className="mt-5 overflow-hidden rounded-[24px] border border-slate-200 bg-slate-100">
-      <div className="relative">
+      <div className="relative isolate overflow-hidden">
         {kakaoMapAppKey ? (
           <KakaoCanvasMap
             appKey={kakaoMapAppKey}
             center={crewLocation ?? routeTarget}
-            className="h-[340px] w-full"
+            className="relative z-0 h-[340px] w-full"
             fitBounds
             markers={markers}
             path={path}
-            routeColor={routeMode === "car" ? "#2563eb" : "#64748b"}
-            routeOpacity={routeMode === "car" ? 0.78 : 0.62}
-            routeWeight={routeMode === "car" ? 6 : 4}
+            routeColor={routeMode === "car" ? (hasRoadRoute ? "#2563eb" : "#64748b") : "#64748b"}
+            routeOpacity={routeMode === "car" ? (hasRoadRoute ? 0.78 : 0.52) : 0.62}
+            routeWeight={routeMode === "car" ? (hasRoadRoute ? 6 : 4) : 4}
           />
         ) : (
           <div className="flex h-[340px] w-full items-center justify-center px-6 text-center">
@@ -492,7 +528,7 @@ function TrackingMap({
             </div>
           </div>
         )}
-        <div className="absolute right-3 top-3 z-10 flex rounded-full bg-white/95 p-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
+        <div className="absolute right-3 top-3 z-30 flex rounded-full bg-white/95 p-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
           {(["car", "walk"] as const).map((mode) => (
             <button
               key={mode}
@@ -502,27 +538,28 @@ function TrackingMap({
               onClick={() => setRouteMode(mode)}
               type="button"
             >
-              {mode === "car" ? "Car" : "Walk"}
+              {mode === "car" ? "차량" : "도보"}
             </button>
           ))}
         </div>
-        <div className="pointer-events-none absolute left-3 right-3 top-14 rounded-[18px] bg-white/95 px-4 py-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
-          <p className="text-xs font-black text-lgred">?? ?? ??</p>
+        <div className="pointer-events-none absolute left-3 right-3 top-14 z-30 rounded-[18px] bg-white/95 px-4 py-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
+          <p className="text-xs font-black text-lgred">크루 이동 경로</p>
           <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
             {routeMode === "walk"
-              ? "카카오맵에서 도보 경로를 확인할 수 있습니다."
+              ? "도보 경로는 카카오맵에서 확인해주세요."
               : hasRoadRoute
-                ? "차량 도로 경로를 표시하고 있습니다."
-                : "차량 도로 경로를 계산 중입니다."}
+                ? "차량 최단 경로를 표시하고 있습니다."
+                : "경로 탐색 중입니다."}
           </p>
+          {routeMetric ? <p className="mt-1 text-xs font-black text-ink">{routeMetric}</p> : null}
         </div>
         {canOpenWalkLink ? (
           <button
-            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-xs font-black text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]"
+            className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-xs font-black text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]"
             onClick={() => window.open(kakaoWalkRouteUrl(crewLocation, routeTarget), "_blank", "noopener,noreferrer")}
             type="button"
           >
-            Open Kakao walk route
+            카카오맵 도보 길찾기
           </button>
         ) : null}
       </div>
