@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 type TrackingPanelProps = {
   swapRequest: SwapRequest | null;
   onNext: () => void;
+  onMissing?: () => void;
 };
 
 type PickupTrackingStatus =
@@ -25,6 +26,8 @@ type Coordinates = {
   lng: number;
 };
 
+type TrackingMetrics = NonNullable<SwapRequest["tracking"]["metrics"]>;
+
 type TrackingViewModel = {
   status: PickupTrackingStatus;
   title: string;
@@ -32,16 +35,29 @@ type TrackingViewModel = {
   pickupLocation: Coordinates;
   pickupAddress: string;
   crewLocation: Coordinates | null;
+  crewAddress: string;
+  pickupDistanceLabel: string;
+  hubDistanceLabel: string;
   processingCenter: { label: string; lat: number; lng: number } | null;
   etaLabel: string;
+  routeDistanceLabel: string;
+  routeDurationLabel: string;
+  routeDistanceMeters: number | null;
   routePath: Coordinates[];
   routeDurationLabel: string;
+  events: {
+    eventType: string;
+    message: string;
+    createdAt: string;
+  }[];
   crewProfile: {
     name: string;
     photoUrl: string;
     rating: number;
     phone: string;
   } | null;
+  locationMessage: string;
+  events: { eventType: string; message: string; createdAt: string }[];
 };
 
 const KakaoCanvasMap = dynamic(
@@ -56,6 +72,52 @@ function normalizeCrewPhoto(name?: string | null, photoUrl?: string | null) {
   if (name?.trim() === "무함마드") {
     return MUHAMMAD_PROFILE_PHOTO;
   }
+const progressSteps = [
+  { key: "REQUESTED", label: "요청 접수" },
+  { key: "ASSIGNED", label: "크루 배정" },
+  { key: "EN_ROUTE", label: "수거지 이동" },
+  { key: "ARRIVED", label: "문앞 도착" },
+  { key: "HUB_DONE", label: "e-waste 공장 전달 완료" },
+] as const;
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(parsed);
+}
+
+function formatDistance(meters?: number | null) {
+  if (meters == null) return "-";
+  if (meters >= 1000) return `${(meters / 1000).toFixed(1)}km`;
+  return `${Math.round(meters)}m`;
+}
+
+function formatDurationSeconds(seconds?: number | null) {
+  if (seconds == null) return "-";
+  return `${Math.max(1, Math.round(seconds / 60))}분`;
+}
+
+function formatPrecisionDistance(metrics?: TrackingMetrics | null) {
+  if (!metrics) return "-";
+  const distance = metrics.effectiveDistanceMeters ?? metrics.crewToPickupMeters;
+  if (metrics.proximityStatus === "SAME_PLACE") return "20m 이내";
+  if (metrics.proximityStatus === "NEAR") return distance == null ? "근처" : `${Math.max(1, Math.round(distance))}m 이내`;
+  if (metrics.distanceConfidence === "LOW" && distance != null) return `약 ${Math.round(distance)}m`;
+  return formatDistance(distance);
+}
+
+function formatWalkDuration(distanceMeters?: number | null) {
+  if (distanceMeters == null) return "-";
+  const minutes = Math.max(1, Math.round(distanceMeters / 80));
+  return `${minutes}분`;
+}
 
   return photoUrl?.trim() || MUHAMMAD_PROFILE_PHOTO;
 }
@@ -130,12 +192,24 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
 
   const status = deriveStatus(request);
   const minutes = minutesUntil(request.tracking.estimatedArrivalAt);
+  const metrics = request.tracking.metrics;
+  const precisionDistanceLabel = formatPrecisionDistance(metrics);
+  const precisionDurationLabel =
+    metrics?.effectiveDurationSeconds != null ? formatDurationSeconds(metrics.effectiveDurationSeconds) : null;
   const driverLocation = request.tracking.driverLocation
     ? {
         lat: request.tracking.driverLocation.lat,
         lng: request.tracking.driverLocation.lng,
       }
     : null;
+  const route = request.tracking.route;
+  const routePoints = route?.points ?? [];
+  const hasDrawableVehicleRoute =
+    route?.mode === "DRIVE" &&
+    route.routeSource === "kakao_drive" &&
+    route.approximate !== true &&
+    route.suppressedByProximity !== true &&
+    routePoints.length > 1;
 
   return {
     status,
@@ -144,14 +218,22 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
     pickupLocation: { lat: pickupLat, lng: pickupLng },
     pickupAddress: request.pickupRequest?.address ?? request.booking?.address ?? "수거 위치 정보 없음",
     crewLocation: driverLocation,
+    crewAddress: driverLocation ? "크루 현재 이동 위치" : "크루 위치 확인 중",
+    pickupDistanceLabel: precisionDistanceLabel,
+    hubDistanceLabel: formatDistance(metrics?.crewToProcessingCenterMeters),
     processingCenter: request.tracking.processingCenter ?? null,
     etaLabel: status === "delivered_to_hub" ? "처리 완료" : minutes > 0 ? `${minutes}분 예상` : "곧 도착",
-    routePath:
-      request.tracking.route?.points?.map((point) => ({
+    routeDistanceLabel:
+      precisionDistanceLabel !== "-" ? precisionDistanceLabel : request.tracking.route?.distanceLabel ?? "-",
+    routeDurationLabel: precisionDurationLabel ?? request.tracking.route?.durationLabel ?? "-",
+    routeDistanceMeters: metrics?.effectiveDistanceMeters ?? request.tracking.route?.distanceMeters ?? metrics?.crewToPickupMeters ?? null,
+    routePath: hasDrawableVehicleRoute
+      ? routePoints.map((point) => ({
         lat: point.lat,
         lng: point.lng,
-      })) ?? [],
-    routeDurationLabel: request.tracking.route?.durationLabel ?? "-",
+      }))
+      : [],
+    events: request.tracking.events ?? [],
     crewProfile: request.crewProfile
       ? {
           name: request.crewProfile.name,
@@ -160,10 +242,14 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
           phone: "+82-10-0000-0000",
         }
       : null,
+    locationMessage: request.tracking.metrics?.locationLive
+      ? `실시간 위치 갱신 ${request.tracking.driverLocation?.updatedAt ? formatDateTime(request.tracking.driverLocation.updatedAt) : ""}`.trim()
+      : "최신 위치를 확인하는 중입니다.",
+    events: request.tracking.events ?? [],
   };
 }
 
-export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
+export function TrackingPanel({ swapRequest, onNext, onMissing }: TrackingPanelProps) {
   const [liveRequest, setLiveRequest] = useState<SwapRequest | null>(swapRequest);
   const [error, setError] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -188,6 +274,14 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
     }
 
     let disposed = false;
+    let timer: number | undefined;
+
+    const stopTracking = () => {
+      disposed = true;
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+      }
+    };
 
     const fetchTracking = async () => {
       try {
@@ -207,22 +301,29 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
           setError(null);
         }
       } catch (requestError) {
-        if (!disposed) {
-          setError(requestError instanceof Error ? requestError.message : "tracking request failed");
+        if (disposed) {
+          return;
         }
+
+        if (isNotFoundApiError(requestError)) {
+          setLiveRequest(null);
+          setError(null);
+          onMissing?.();
+          stopTracking();
+          return;
+        }
+
+        setError(requestError instanceof Error ? requestError.message : "tracking request failed");
       }
     };
 
     void fetchTracking();
-    const timer = window.setInterval(() => {
+    timer = window.setInterval(() => {
       void fetchTracking();
     }, 2000);
 
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
-  }, [swapRequest?.id]);
+    return stopTracking;
+  }, [onMissing, swapRequest?.id]);
 
   const viewModel = liveRequest ? mapToViewModel(liveRequest) : null;
 
@@ -237,11 +338,20 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
     );
   }
 
-  const isDelivered = viewModel.status === "delivered_to_hub";
-  const activeRouteTarget =
+  const currentStepIndex = {
+    waiting: 0,
+    crew_assigned: 1,
+    en_route_pickup: 2,
+    arrived: 3,
+    en_route_hub: 4,
+    delivered_to_hub: 4,
+  }[viewModel.status] ?? 0;
+
+  const nextDestination =
     viewModel.status === "en_route_hub" || viewModel.status === "delivered_to_hub"
       ? viewModel.processingCenter
       : viewModel.pickupLocation;
+  const currentStepIndex = progressIndex(viewModel.status);
   const hasSubmittedReview = Boolean(liveRequest.crewReview);
 
   const handleSubmitReview = async () => {
@@ -305,6 +415,9 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
             crewLocation={viewModel.crewLocation}
             pickupLocation={viewModel.pickupLocation}
             processingCenter={viewModel.processingCenter}
+            routeDistanceLabel={viewModel.routeDistanceLabel}
+            routeDistanceMeters={viewModel.routeDistanceMeters}
+            routeDurationLabel={viewModel.routeDurationLabel}
             routePath={viewModel.routePath}
             routeDurationLabel={viewModel.routeDurationLabel}
             routeTarget={activeRouteTarget}
@@ -412,6 +525,9 @@ function SimpleTrackingMap({
   crewLocation,
   pickupLocation,
   processingCenter,
+  routeDistanceLabel,
+  routeDistanceMeters,
+  routeDurationLabel,
   routePath,
   routeDurationLabel,
   routeTarget,
@@ -419,6 +535,9 @@ function SimpleTrackingMap({
   crewLocation: Coordinates | null;
   pickupLocation: Coordinates;
   processingCenter: { label: string; lat: number; lng: number } | null;
+  routeDistanceLabel: string;
+  routeDistanceMeters: number | null;
+  routeDurationLabel: string;
   routePath: Coordinates[];
   routeDurationLabel: string;
   routeTarget: { lat: number; lng: number } | null;
@@ -440,35 +559,133 @@ function SimpleTrackingMap({
       : []),
   ];
 
-  return (
-    <div className="mt-2 overflow-hidden rounded-[20px] border border-slate-100 bg-slate-50">
-      {kakaoMapAppKey ? (
-        <KakaoCanvasMap
-          appKey={kakaoMapAppKey}
-          center={center}
-          className="h-[320px] w-full"
-          fitBounds
-          markers={markers}
-          path={routePath}
-          routeColor="#2563eb"
-          routeOpacity={0.78}
-          routeWeight={6}
-        />
-      ) : (
-        <TrackingFallbackMap crewLocation={crewLocation} pickupLocation={pickupLocation} />
-      )}
+  useEffect(() => {
+    setLockedCarPath([]);
+  }, [routeTarget.lat, routeTarget.lng, crewLocation?.lat, crewLocation?.lng]);
 
-      <div className="border-t border-slate-100 bg-white px-4 py-3 text-center">
-        <p className="text-xs font-black text-lgred">실시간 이동 경로</p>
-        <p className="mt-1 text-sm font-semibold text-slate-600">
-          {routeDurationLabel !== "-" ? `${routeDurationLabel} 안에 도착 예정이에요.` : "경로를 계산하고 있어요."}
-        </p>
+  useEffect(() => {
+    if (routePath.length <= 1) return;
+    setLockedCarPath((previous) => (previous.length > 1 ? previous : routePath));
+  }, [routePath]);
+
+  const carPath = lockedCarPath.length > 1 ? lockedCarPath : [];
+  const path = routeMode === "car" ? carPath : [];
+  const hasRoadRoute = routeMode === "car" && carPath.length > 1;
+  const isRouteSearching = routeMode === "car" && !hasRoadRoute && Boolean(crewLocation);
+  const canOpenWalkLink = routeMode === "walk" && crewLocation;
+  const calorieLabel = formatCalories(routeDistanceMeters);
+  const routeMetric = [
+    routeDistanceLabel,
+    routeMode === "walk" ? formatWalkDuration(routeDistanceMeters) : routeDurationLabel,
+    calorieLabel,
+  ]
+    .filter((value) => value && value !== "-")
+    .join(" · ");
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-[24px] border border-slate-200 bg-slate-100">
+      <div className="relative isolate overflow-hidden">
+        {kakaoMapAppKey ? (
+          <KakaoCanvasMap
+            appKey={kakaoMapAppKey}
+            center={crewLocation ?? routeTarget}
+            className="relative z-0 h-[340px] w-full"
+            fitBounds
+            markers={markers}
+            path={carPath}
+            routeColor={hasRoadRoute ? "#2563eb" : "#64748b"}
+            routeOpacity={hasRoadRoute ? 0.78 : 0.52}
+            routeWeight={hasRoadRoute ? 6 : 4}
+          />
+        ) : (
+          <>
+            <TrackingFallbackMap crewLocation={crewLocation} pickupLocation={pickupLocation} />
+            <div className="flex h-[340px] w-full items-center justify-center px-6 text-center">
+              <div>
+                <p className="text-sm font-black text-ink">Kakao Maps 연결이 필요합니다</p>
+                <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                  `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` 값을 확인한 뒤 앱을 다시 실행해 주세요.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="absolute right-3 top-3 z-30 flex rounded-full bg-white/95 p-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
+          {(["car", "walk"] as const).map((mode) => (
+            <button
+              key={mode}
+              className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                routeMode === mode ? "bg-lgred text-white" : "text-slate-500"
+              }`}
+              onClick={() => setRouteMode(mode)}
+              type="button"
+            >
+              {mode === "car" ? "차량" : "도보"}
+            </button>
+          ))}
+        </div>
+
+        <div className="pointer-events-none absolute left-3 right-3 top-14 z-30 rounded-[18px] bg-white/95 px-4 py-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
+          <p className="text-xs font-black text-lgred">실시간 이동 경로</p>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
+            {routeMode === "walk"
+              ? "도보 경로는 카카오맵에서 자세히 확인할 수 있어요."
+              : hasRoadRoute
+                ? "차량 최단 경로를 표시하고 있어요."
+                : isRouteSearching
+                  ? "경로를 계산하고 있어요."
+                  : "차량 경로를 준비 중이에요."}
+          </p>
+          {routeMetric ? <p className="mt-1 text-xs font-black text-ink">{routeMetric}</p> : null}
+        </div>
+
+        {canOpenWalkLink ? (
+          <button
+            className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-xs font-black text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]"
+            onClick={() => window.open(kakaoWalkRouteUrl(crewLocation, routeTarget), "_blank", "noopener,noreferrer")}
+            type="button"
+          >
+            카카오맵 도보 길찾기
+          </button>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 border-t border-slate-200 bg-white p-3 text-xs font-bold text-slate-500 sm:grid-cols-3">
+        <MapLegend colorClass="bg-[#2563eb]" label="수거 위치" />
+        <MapLegend colorClass="bg-[#dc2626]" label="크루 현재 위치" />
+        <MapLegend colorClass="bg-[#16a34a]" label="처리 허브" />
       </div>
     </div>
   );
 }
 
-function LegendDot({ colorClass, label }: { colorClass: string; label: string }) {
+function InfoCard({
+  icon,
+  title,
+  value,
+  caption,
+}: {
+  icon: ReactNode;
+  title: string;
+  value: string;
+  caption: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="shrink-0">{icon}</div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-lgred">{title}</p>
+          <p className="mt-1 truncate text-[14px] font-bold leading-5 text-ink">{value}</p>
+          <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">{caption}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MapLegend({ colorClass, label }: { colorClass: string; label: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className={`h-2.5 w-2.5 rounded-full ${colorClass}`} />
@@ -517,6 +734,44 @@ function TrackingFallbackMap({
       <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500 shadow-sm">
         지도가 연결되기 전 위치 미리보기예요. 수거 위치 {pickupLocation.lat.toFixed(4)}, {pickupLocation.lng.toFixed(4)}
         {crewLocation ? ` · 크루 ${crewLocation.lat.toFixed(4)}, ${crewLocation.lng.toFixed(4)}` : ""}
+      </div>
+    </div>
+  );
+}
+
+function defaultEventMessage(stepKey: (typeof progressSteps)[number]["key"]) {
+  switch (stepKey) {
+    case "REQUESTED":
+      return "예약 또는 바로콜 요청이 접수된 상태입니다.";
+    case "ASSIGNED":
+      return "매칭 점수가 높은 크루가 배정됩니다.";
+    case "EN_ROUTE":
+      return "크루 위치가 실시간으로 갱신됩니다.";
+    case "ARRIVED":
+      return "문앞 도착 후 실물 확인과 수거가 진행됩니다.";
+    case "HUB_DONE":
+      return "e-waste 공장 전달 완료 시 최종 완료 상태가 표시됩니다.";
+  }
+}
+
+function InfoCard({
+  icon,
+  title,
+  value,
+  caption,
+}: {
+  icon: ReactNode;
+  title: string;
+  value: string;
+  caption?: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-[20px] border border-slate-200 bg-white p-3">
+      <div className="shrink-0">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold text-slate-500">{title}</p>
+        <p className="mt-0.5 truncate text-[13px] font-bold text-ink">{value}</p>
+        {caption ? <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">{caption}</p> : null}
       </div>
     </div>
   );

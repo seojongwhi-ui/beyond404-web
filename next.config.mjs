@@ -11,7 +11,6 @@ const backendApiRoutes = [
   "credits",
   "market",
   "notifications",
-  "swap-requests",
   "users",
 ];
 
