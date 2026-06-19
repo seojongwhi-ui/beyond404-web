@@ -339,6 +339,7 @@ export function CapturePanel({
   const frameRef = useRef<HTMLDivElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cameraStartPromiseRef = useRef<Promise<void> | null>(null);
+  const recognitionRunRef = useRef(0);
   const [phase, setPhase] = useState<CapturePhase>("camera");
   const [target, setTarget] = useState<CaptureTarget>("exterior");
   const [cameraReady, setCameraReady] = useState(false);
@@ -413,11 +414,12 @@ export function CapturePanel({
     const prevBrand = recognizedInfo.brand;
     const prevEstimatedAge = recognizedInfo.estimatedAge;
 
-    let cancelled = false;
+    const runId = recognitionRunRef.current + 1;
+    recognitionRunRef.current = runId;
+    const isStale = () => recognitionRunRef.current !== runId;
 
     const fallbackTimer = window.setTimeout(() => {
-      if (cancelled) return;
-      cancelled = true;
+      if (isStale()) return;
       setPhase("review");
     }, 30000);
 
@@ -427,7 +429,7 @@ export function CapturePanel({
 
         // 1단계: 스티커 OCR → 브랜드 + 모델명 텍스트 추출
         const labelResult = await callLabelApi(stickerImageData);
-        if (cancelled) return;
+        if (isStale()) return;
 
         const mergedModelName = knownText(labelResult.modelName) || knownText(prevModelName);
         const mergedBrand = knownText(labelResult.brand) || knownText(prevBrand);
@@ -436,7 +438,7 @@ export function CapturePanel({
           // 2단계: 모델명으로 스펙 조회
           try {
             const specs = await callLookupSpecsApi(mergedModelName);
-            if (cancelled) return;
+            if (isStale()) return;
 
             nextInfo = {
               ...nextInfo,
@@ -466,7 +468,7 @@ export function CapturePanel({
           };
         }
 
-        if (onPreviewAnalyze && !cancelled) {
+        if (onPreviewAnalyze && !isStale()) {
           try {
             const previewResult = await onPreviewAnalyze({
               exteriorPhotoFileName,
@@ -480,7 +482,7 @@ export function CapturePanel({
               estimatedAge: nextInfo.estimatedAge,
               exteriorCondition: nextInfo.exteriorCondition,
             });
-            if (cancelled) return;
+            if (isStale()) return;
             nextInfo = mergeKnownRecognizedInfo(nextInfo, previewResult);
           } catch {
             // 서버 미리 분석 실패 시에도 OCR/스펙 조회 결과는 유지합니다.
@@ -492,16 +494,17 @@ export function CapturePanel({
         // OCR 완전 실패 → 기존 정보 유지
       } finally {
         window.clearTimeout(fallbackTimer);
-        if (!cancelled) setPhase("review");
+        if (!isStale()) setPhase("review");
       }
     })();
 
-    return () => { cancelled = true; window.clearTimeout(fallbackTimer); };
+    return () => { window.clearTimeout(fallbackTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, stickerImageData]);
 
   useEffect(() => {
     return () => {
+      recognitionRunRef.current += 1;
       stopCamera();
       if (exteriorPreviewUrl) URL.revokeObjectURL(exteriorPreviewUrl);
       if (labelPreviewUrl) URL.revokeObjectURL(labelPreviewUrl);
@@ -781,6 +784,7 @@ export function CapturePanel({
   }
 
   function resetAllCaptures() {
+    recognitionRunRef.current += 1;
     if (exteriorPreviewUrl) URL.revokeObjectURL(exteriorPreviewUrl);
     if (labelPreviewUrl) URL.revokeObjectURL(labelPreviewUrl);
     setExteriorPreviewUrl("");
