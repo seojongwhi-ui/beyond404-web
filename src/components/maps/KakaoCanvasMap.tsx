@@ -103,7 +103,7 @@ function markerColor(marker: MapMarker) {
 }
 
 function markerLabel(marker: MapMarker) {
-  if (marker.label === "home") return "H";
+  if (marker.label === "home") return "⌂";
   return (marker.label ?? marker.key.slice(0, 1)).slice(0, 1).toUpperCase();
 }
 
