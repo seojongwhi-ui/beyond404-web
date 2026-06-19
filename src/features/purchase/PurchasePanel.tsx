@@ -11,8 +11,7 @@ export type ProductCategoryId =
   | "refrigerator"
   | "air_conditioner"
   | "microwave"
-  | "tv"
-  | "air_purifier";
+  | "tv";
 
 export type ProductId = string;
 export type ProductGrade = "프리미엄" | "일반/중형" | "보급형";
@@ -50,7 +49,6 @@ const categoryLabels: Record<ProductCategoryId, string> = {
   air_conditioner: "에어컨",
   microwave: "전자레인지",
   tv: "TV",
-  air_purifier: "공기청정기",
 };
 
 export const purchaseProducts: ReplacementProduct[] = [
@@ -326,48 +324,6 @@ export const purchaseProducts: ReplacementProduct[] = [
       { label: "형태", value: "스탠드형" },
     ],
     tags: ["107cm", "LED", "실속형"],
-  },
-  {
-    id: "air-purifier-360",
-    categoryId: "air_purifier",
-    category: "공기청정기",
-    name: "LG 퓨리케어 360 공기청정기",
-    grade: "일반/중형",
-    originalPrice: 890000,
-    sameDayEligible: true,
-    imageUrl: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=900&q=80",
-    summary: "360도 청정 / 중형 공간 / 필터 알림",
-    detail: "일상 공간 공기 관리를 안정적으로 도와주는 공기청정기예요.",
-    recommendedFor: "거실이나 침실의 공기 질 관리가 중요한 집에 추천해요.",
-    serviceInfo: "필터 교체 알림과 함께 ThinQ 연동 사용이 가능해요.",
-    highlights: ["360도 청정", "중형 공간 대응", "ThinQ 연동"],
-    specs: [
-      { label: "청정 방식", value: "360도" },
-      { label: "공간", value: "중형" },
-      { label: "연동", value: "ThinQ" },
-    ],
-    tags: ["360도", "중형", "ThinQ"],
-  },
-  {
-    id: "air-purifier-aero-furniture",
-    categoryId: "air_purifier",
-    category: "공기청정기",
-    name: "LG 퓨리케어 에어로퍼니처",
-    grade: "프리미엄",
-    originalPrice: 1290000,
-    sameDayEligible: true,
-    imageUrl: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=900&q=80",
-    summary: "테이블형 / 인테리어형 / 프리미엄",
-    detail: "가전과 가구의 역할을 함께 담은 프리미엄 공기청정기예요.",
-    recommendedFor: "인테리어와 공기 관리를 함께 고려하는 공간에 잘 맞아요.",
-    serviceInfo: "소형 배송과 설치 안내를 함께 받아볼 수 있어요.",
-    highlights: ["테이블형 디자인", "인테리어형", "프리미엄 라인"],
-    specs: [
-      { label: "형태", value: "테이블형" },
-      { label: "제품군", value: "에어로퍼니처" },
-      { label: "등급", value: "프리미엄" },
-    ],
-    tags: ["에어로퍼니처", "테이블형", "프리미엄"],
   },
 ];
 

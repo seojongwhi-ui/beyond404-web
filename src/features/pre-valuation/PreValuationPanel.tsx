@@ -107,7 +107,7 @@ export function PreValuationPanel({
 
             <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-3">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-bold text-lgred">수거만 진행</span>
+                <span className="text-[12px] font-bold text-ink">수거만 진행</span>
                 <span className="text-[12px] font-bold text-ink">기본 크레딧 지급</span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">

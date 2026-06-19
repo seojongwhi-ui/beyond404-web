@@ -25,10 +25,7 @@ export function ReservationStatusPanel({
       <div className="mt-5 rounded-3xl border border-lgred/15 bg-lgred/5 p-5 text-center">
         <Calendar3DIcon className="mx-auto h-14 w-14" />
         <p className="mt-4 text-xs font-semibold text-lgred">수거 예약이 등록되어 있습니다</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink">{reservationLabel || "예약 시간 확인 중"}</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          예약 시간 전까지 여기서 수거 일정과 주소를 확인하고, 필요하면 예약을 변경하거나 취소할 수 있습니다.
-        </p>
+        <h2 className="mt-2 text-2xl font-bold text-ink">{reservationLabel || "예약 시간 확인 중"}</h2>
       </div>
 
       <div className="mt-4 space-y-3">

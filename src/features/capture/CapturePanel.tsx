@@ -1093,11 +1093,11 @@ function ReviewView({
       </div>
 
       <div className="mt-4 space-y-3">
-        <InfoInput label="가전 종류" value={recognizedInfo.applianceType} onChange={(value) => onChange({ ...recognizedInfo, applianceType: value })} />
+        <InfoInput label="가전 종류" value={recognizedInfo.applianceType} readOnly onChange={(value) => onChange({ ...recognizedInfo, applianceType: value })} />
         <InfoInput label="브랜드" value={recognizedInfo.brand} onChange={(value) => onChange({ ...recognizedInfo, brand: value })} />
         <InfoInput label="모델명" value={recognizedInfo.modelName} onChange={(value) => onChange({ ...recognizedInfo, modelName: value })} />
-        <InfoInput label="예상 연식" value={recognizedInfo.estimatedAge} onChange={(value) => onChange({ ...recognizedInfo, estimatedAge: value })} />
-        <InfoInput label="외관 상태" value={recognizedInfo.exteriorCondition} onChange={(value) => onChange({ ...recognizedInfo, exteriorCondition: value })} />
+        <InfoInput label="예상 연식" value={recognizedInfo.estimatedAge} readOnly onChange={(value) => onChange({ ...recognizedInfo, estimatedAge: value })} />
+        <InfoInput label="외관 상태" value={recognizedInfo.exteriorCondition} readOnly onChange={(value) => onChange({ ...recognizedInfo, exteriorCondition: value })} />
       </div>
 
       {credit !== null && (
@@ -1194,16 +1194,18 @@ function InfoInput({
   label,
   value,
   onChange,
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <label className="block">
       <span className="text-xs font-semibold text-slate-500">{label}</span>
       <input
-        className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-ink outline-none focus:border-lgred"
+        className={`mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold text-ink outline-none ${readOnly ? "bg-slate-50" : "bg-white focus:border-lgred"}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
