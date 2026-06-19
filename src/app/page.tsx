@@ -683,8 +683,11 @@ export default function HomePage() {
 
       return updateAppliance(analyzed.id, {
         ...submission,
+        applianceType: preferKnownValue(analyzed.appliance.applianceType, submission.applianceType),
         brand: preferKnownValue(analyzed.appliance.brand, submission.brand),
         modelName: preferKnownValue(analyzed.appliance.modelName, submission.modelName),
+        estimatedAge: preferKnownValue(analyzed.appliance.estimatedAge, submission.estimatedAge),
+        exteriorCondition: preferKnownValue(analyzed.appliance.exteriorCondition, submission.exteriorCondition),
       });
     },
     onSuccess: (data) => {
