@@ -250,6 +250,8 @@ async function callLabelApi(imageData: string): Promise<{ brand?: string; modelN
 
 async function callLookupSpecsApi(modelName: string): Promise<{
   brand?: string;
+  modelName?: string;
+  applianceType?: string;
   capacity?: string;
   size?: string;
   releaseYear?: number;
@@ -266,6 +268,13 @@ async function callLookupSpecsApi(modelName: string): Promise<{
   }
 
   return response.json();
+}
+
+function knownText(value?: string | null) {
+  const text = value?.trim() ?? "";
+  if (!text) return "";
+  if (["unknown", "null", "undefined", "n/a", "-"].includes(text.toLowerCase())) return "";
+  return text;
 }
 
 const GUIDE_FRAME_PROFILES: Record<ApplianceId, { width: string; aspectRatio: string; maxHeight: string }> = {
@@ -397,8 +406,8 @@ export function CapturePanel({
         const labelResult = await callLabelApi(stickerImageData);
         if (cancelled) return;
 
-        const mergedModelName = labelResult.modelName || prevModelName || "";
-        const mergedBrand = labelResult.brand || prevBrand || "";
+        const mergedModelName = knownText(labelResult.modelName) || knownText(prevModelName);
+        const mergedBrand = knownText(labelResult.brand) || knownText(prevBrand);
 
         if (mergedModelName) {
           // 2단계: 모델명으로 스펙 조회
@@ -409,7 +418,7 @@ export function CapturePanel({
             setRecognizedInfo((prev) => ({
               ...prev,
               brand: mergedBrand || specs.brand || prev.brand,
-              modelName: mergedModelName,
+              modelName: specs.modelName || mergedModelName,
               capacity: specs.capacity || prev.capacity,
               size: specs.size || prev.size,
               estimatedAge: specs.releaseYear

@@ -6,11 +6,13 @@ const LABEL_PROMPT = `Read the appliance label or sticker photo and respond with
 Return this exact shape:
 {
   "brand": "brand name or null",
-  "modelName": "model number/name or null",
+  "modelName": "exact visible model code or null",
   "manufacturingDate": "date or null"
 }
 
-Use only text visible in the photo. Do not invent text.`;
+Find fields labeled model, model name, model no, model code, model number, 모델명, 형명, 품명, 제품명.
+Use only text visible in the photo. Keep English letters and numbers exactly as shown.
+Do not invent text. If unreadable, return null for modelName.`;
 
 function fallbackLabelResponse() {
   return {
@@ -20,9 +22,43 @@ function fallbackLabelResponse() {
   };
 }
 
+function firstKnown(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value !== "string") continue;
+
+    const text = value.trim();
+    if (!text) continue;
+    if (["unknown", "null", "undefined", "n/a", "-"].includes(text.toLowerCase())) continue;
+
+    return text;
+  }
+
+  return null;
+}
+
 function parseJsonContent(content: string) {
   const clean = content.replace(/```json/g, "").replace(/```/g, "").trim();
-  return JSON.parse(clean);
+  const parsed = JSON.parse(clean) as Record<string, unknown>;
+
+  return {
+    brand: firstKnown(parsed, ["brand", "manufacturer", "maker", "company"]) ?? "unknown",
+    modelName:
+      firstKnown(parsed, [
+        "modelName",
+        "model_name",
+        "model",
+        "modelNo",
+        "model_no",
+        "modelNumber",
+        "model_number",
+        "modelCode",
+        "model_code",
+        "productModel",
+        "product_model",
+      ]) ?? "unknown",
+    manufacturingDate: firstKnown(parsed, ["manufacturingDate", "manufacturing_date", "date"]) ?? null,
+  };
 }
 
 export async function POST(request: NextRequest) {
