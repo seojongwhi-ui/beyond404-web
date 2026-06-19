@@ -3,6 +3,8 @@ const backendOrigin =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   "http://127.0.0.1:8080";
 
+export const dynamic = "force-dynamic";
+
 type RouteContext = {
   params: Promise<{
     path?: string[];
@@ -11,6 +13,7 @@ type RouteContext = {
 
 async function copyBackendResponse(response: Response) {
   const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "no-store");
   headers.set("x-swapit-route", "swap-requests-handler");
 
   return new Response(response.body, {
@@ -107,6 +110,7 @@ async function proxySwapRequest(request: Request, context: RouteContext) {
   headers.delete("expect");
 
   const init: RequestInit = {
+    cache: "no-store",
     method: request.method,
     headers,
     redirect: "manual",

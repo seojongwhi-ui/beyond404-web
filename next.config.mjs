@@ -15,7 +15,7 @@ const backendApiRoutes = [
 ];
 
 const nextConfig = {
-  allowedDevOrigins: ["172.30.1.32", "172.30.1.33", "192.168.0.101", "192.168.0.132"],
+  allowedDevOrigins: ["172.30.1.32", "172.30.1.33", "172.30.1.55", "192.168.0.101", "192.168.0.132"],
   async rewrites() {
     return backendApiRoutes.map((route) => ({
       source: `/api/${route}/:path*`,

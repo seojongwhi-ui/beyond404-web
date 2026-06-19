@@ -81,7 +81,9 @@ export type PickupLocationPayload = {
 
 export type CapturePayload = {
   exteriorPhotoFileName: string;
+  exteriorPhotoUrl?: string;
   labelPhotoFileName: string;
+  labelPhotoUrl?: string;
   agreedToCreditPolicy: boolean;
   applianceType: string;
   brand: string;
@@ -204,7 +206,7 @@ export function analyzePhoto(id: number, payload: CapturePayload) {
       fileName: payload.exteriorPhotoFileName,
       exteriorPhotoFileName: payload.exteriorPhotoFileName,
       labelPhotoFileName: payload.labelPhotoFileName,
-      imageUrl: payload.exteriorPhotoFileName,
+      imageUrl: payload.labelPhotoUrl ?? payload.exteriorPhotoUrl ?? payload.exteriorPhotoFileName,
       applianceType: payload.applianceType,
       agreedToCreditPolicy: payload.agreedToCreditPolicy,
     }),
@@ -301,7 +303,12 @@ export function cancelSwapRequest(id: number) {
 }
 
 export function getTracking(id: number) {
-  return request<SwapRequest>(`/api/swap-requests/${id}/tracking`);
+  return request<SwapRequest>(`/api/swap-requests/${id}/tracking`, {
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 export function getSwapRequest(id: number) {

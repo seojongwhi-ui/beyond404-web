@@ -71,6 +71,10 @@ const DEFAULT_CREW_PROFILE = {
   photoUrl: "/crew-muhammad.png",
   rating: 4.9,
 };
+const FIXED_PROCESSING_CENTERS = [
+  { label: "LG사이언스파크 마곡", lat: 37.562475, lng: 126.831166 },
+  { label: "LG전자 창원 성산 허브", lat: 35.202531, lng: 128.677344 },
+] as const;
 
 const progressSteps = [
   { key: "REQUESTED", label: "요청 접수" },
@@ -97,6 +101,32 @@ function formatDistance(meters?: number | null) {
   if (meters == null) return "-";
   if (meters >= 1000) return `${(meters / 1000).toFixed(1)}km`;
   return `${Math.round(meters)}m`;
+}
+
+function formatKoreanDisplayName(value?: string | null) {
+  if (!value) return "";
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized.includes(",")) {
+    return normalized;
+  }
+
+  const parts = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part && part !== "대한민국" && part !== "South Korea" && !/^\d{5}$/.test(part));
+
+  return parts.reverse().join(" ").replace(/\s+/g, " ").trim();
+}
+
+function formatKoreanDurationLabel(value?: string | null) {
+  if (!value || value === "-") return "-";
+  const normalized = value.trim();
+  const minuteMatch = normalized.match(/^(\d+)\s*mins?$/i);
+  if (minuteMatch) {
+    return `${minuteMatch[1]}분`;
+  }
+  return normalized.replace(/\bmins?\b/gi, "분");
 }
 
 function distanceMetersBetween(left: Coordinates, right: Coordinates) {
@@ -249,14 +279,15 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
         lng: request.tracking.driverLocation.lng,
       }
     : null;
-  const routeDurationLabel = request.tracking.route?.durationLabel ?? "-";
+  const routeDurationLabel = formatKoreanDurationLabel(request.tracking.route?.durationLabel);
 
   return {
     status,
     title: titleFor(status),
     subtitle: subtitleFor(status),
     pickupLocation: { lat: pickupLat, lng: pickupLng },
-    pickupAddress: request.pickupRequest?.address ?? request.booking?.address ?? "수거 위치 정보 없음",
+    pickupAddress:
+      formatKoreanDisplayName(request.pickupRequest?.address ?? request.booking?.address) || "수거 위치 정보 없음",
     crewLocation: driverLocation,
     crewAddress: driverLocation ? "크루 현재 이동 위치" : "크루 위치 확인 중",
     hubDistanceLabel: formatDistance(request.tracking.metrics?.crewToProcessingCenterMeters),
@@ -311,6 +342,7 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
 
     let disposed = false;
     let timer: number | undefined;
+    let inFlight = false;
 
     const stopTracking = () => {
       disposed = true;
@@ -320,6 +352,9 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
     };
 
     const fetchTracking = async () => {
+      if (inFlight) return;
+
+      inFlight = true;
       try {
         const latest = await getTracking(swapRequest.id);
         if (!disposed) {
@@ -350,13 +385,15 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
         }
 
         setError(requestError instanceof Error ? requestError.message : "tracking request failed");
+      } finally {
+        inFlight = false;
       }
     };
 
     void fetchTracking();
     timer = window.setInterval(() => {
       void fetchTracking();
-    }, 2000);
+    }, 1000);
 
     return stopTracking;
   }, [onMissing, swapRequest?.id]);
@@ -591,19 +628,18 @@ function TrackingMap({
         ? { lat: processingCenter.lat, lng: processingCenter.lng }
         : pickupLocation
       : pickupLocation;
+  const shouldShowHubMarkers = status === "en_route_hub" || status === "delivered_to_hub";
 
   const markers = [
     { key: "pickup", label: "home", position: pickupLocation, variant: "pickup" as const },
     ...(crewLocation ? [{ key: "crew", label: "C", position: crewLocation, variant: "crew" as const }] : []),
-    ...(processingCenter
-      ? [
-          {
-            key: "hub",
-            label: "H",
-            position: { lat: processingCenter.lat, lng: processingCenter.lng },
-            variant: "hub" as const,
-          },
-        ]
+    ...(shouldShowHubMarkers
+      ? FIXED_PROCESSING_CENTERS.map((center, index) => ({
+          key: `hub-${index}`,
+          label: "H",
+          position: { lat: center.lat, lng: center.lng },
+          variant: "hub" as const,
+        }))
       : []),
   ];
 
@@ -618,6 +654,7 @@ function TrackingMap({
 
   const carPath = lockedCarPath.length > 1 ? lockedCarPath : [];
   const visibleCarPath = trimPassedRoute(carPath, crewLocation);
+  const boundsPoints = visibleCarPath.length > 1 ? visibleCarPath : [crewLocation, routeTarget].filter(Boolean) as Coordinates[];
   const hasRoadRoute = visibleCarPath.length > 1;
 
   return (
@@ -626,6 +663,7 @@ function TrackingMap({
         {kakaoMapAppKey ? (
           <KakaoCanvasMap
             appKey={kakaoMapAppKey}
+            boundsPoints={boundsPoints}
             center={crewLocation ?? routeTarget}
             className="relative z-0 h-[340px] w-full"
             fitBounds

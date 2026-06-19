@@ -673,7 +673,11 @@ export default function HomePage() {
       const current = swapRequest ?? (await createSwapRequestForUser(demoUser, selectedAppliance));
       const analyzed = await analyzePhoto(current.id, submission);
 
-      return updateAppliance(analyzed.id, submission);
+      return updateAppliance(analyzed.id, {
+        ...submission,
+        brand: analyzed.appliance.brand ?? submission.brand,
+        modelName: analyzed.appliance.modelName ?? submission.modelName,
+      });
     },
     onSuccess: (data) => {
       setSwapRequest(data);

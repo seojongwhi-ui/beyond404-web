@@ -13,6 +13,39 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 const MIN_REQUEST_INTERVAL_MS = 1100;
 const BLOCK_BACKOFF_MS = 10 * 60 * 1000;
 const USER_AGENT = "Beyond404 local dev geocoder (contact: dev@beyond404.local)";
+const KAKAO_REST_API_KEY = process.env.KAKAO_REST_API_KEY?.trim() ?? "";
+
+function formatKoreanDisplayName(value?: string | null) {
+  if (!value) return value ?? null;
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized.includes(",")) {
+    return normalized;
+  }
+
+  const parts = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part && part !== "\uB300\uD55C\uBBFC\uAD6D" && part !== "South Korea" && !/^\d{5}$/.test(part));
+
+  return parts.reverse().join(" ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeGeocodeBody<T>(body: T): T {
+  if (Array.isArray(body)) {
+    return body.map((item) =>
+      item && typeof item === "object" && "display_name" in item
+        ? { ...item, display_name: formatKoreanDisplayName(String(item.display_name ?? "")) }
+        : item,
+    ) as T;
+  }
+
+  if (body && typeof body === "object" && "display_name" in body) {
+    return { ...body, display_name: formatKoreanDisplayName(String(body.display_name ?? "")) } as T;
+  }
+
+  return body;
+}
 
 function cached(key: string) {
   const entry = cache.get(key);
@@ -45,6 +78,7 @@ async function fetchNominatim(url: URL) {
 
   await waitForNominatimSlot();
   const response = await fetch(url, {
+    cache: "no-store",
     headers: {
       "Accept-Language": "ko,en;q=0.8",
       "User-Agent": USER_AGENT,
@@ -60,6 +94,37 @@ async function fetchNominatim(url: URL) {
   }
 
   return response;
+}
+
+async function fetchKakao(url: URL) {
+  if (!KAKAO_REST_API_KEY) {
+    return null;
+  }
+
+  return fetch(url, {
+    cache: "no-store",
+    headers: {
+      Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`,
+    },
+  }).catch(() => null);
+}
+
+function kakaoReverseAddress(body: unknown) {
+  const documents = (body as { documents?: { road_address?: { address_name?: string }; address?: { address_name?: string } }[] })
+    .documents;
+  const first = documents?.[0];
+  return first?.road_address?.address_name ?? first?.address?.address_name ?? null;
+}
+
+function kakaoSearchResults(body: unknown) {
+  const documents = (body as { documents?: { address_name?: string; x?: string; y?: string }[] }).documents ?? [];
+  return documents
+    .map((item) => ({
+      display_name: item.address_name ?? "",
+      lat: item.y ?? "",
+      lon: item.x ?? "",
+    }))
+    .filter((item) => item.display_name && item.lat && item.lon);
 }
 
 function coordinateKey(value: string | null) {
@@ -85,19 +150,34 @@ export async function GET(request: Request) {
       return NextResponse.json(cachedBody);
     }
 
+    const kakaoUrl = new URL("https://dapi.kakao.com/v2/local/geo/coord2address.json");
+    kakaoUrl.searchParams.set("x", lon);
+    kakaoUrl.searchParams.set("y", lat);
+    kakaoUrl.searchParams.set("input_coord", "WGS84");
+
+    const kakaoResponse = await fetchKakao(kakaoUrl);
+    if (kakaoResponse?.ok) {
+      const address = kakaoReverseAddress(await kakaoResponse.json());
+      if (address) {
+        const body = { display_name: formatKoreanDisplayName(address) };
+        remember(key, body);
+        return NextResponse.json(body);
+      }
+    }
+
     const url = new URL("https://nominatim.openstreetmap.org/reverse");
     url.searchParams.set("format", "json");
     url.searchParams.set("lat", lat);
     url.searchParams.set("lon", lon);
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("zoom", "18");
 
     const response = await fetchNominatim(url);
     if (!response || !response.ok) {
-      const fallback = { display_name: null };
-      remember(key, fallback);
-      return NextResponse.json(fallback);
+      return NextResponse.json({ display_name: null });
     }
 
-    const body = await response.json();
+    const body = normalizeGeocodeBody(await response.json());
     remember(key, body);
     return NextResponse.json(body);
   }
@@ -115,6 +195,22 @@ export async function GET(request: Request) {
       return NextResponse.json(cachedBody);
     }
 
+    const kakaoUrl = new URL("https://dapi.kakao.com/v2/local/search/address.json");
+    kakaoUrl.searchParams.set("query", query);
+    kakaoUrl.searchParams.set("size", String(limit));
+
+    const kakaoResponse = await fetchKakao(kakaoUrl);
+    if (kakaoResponse?.ok) {
+      const body = kakaoSearchResults(await kakaoResponse.json()).map((item) => ({
+        ...item,
+        display_name: formatKoreanDisplayName(item.display_name),
+      }));
+      if (body.length > 0) {
+        remember(key, body);
+        return NextResponse.json(body);
+      }
+    }
+
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("format", "json");
     url.searchParams.set("q", query);
@@ -124,11 +220,10 @@ export async function GET(request: Request) {
 
     const response = await fetchNominatim(url);
     if (!response || !response.ok) {
-      remember(key, []);
       return NextResponse.json([]);
     }
 
-    const body = await response.json();
+    const body = normalizeGeocodeBody(await response.json());
     remember(key, body);
     return NextResponse.json(body);
   }

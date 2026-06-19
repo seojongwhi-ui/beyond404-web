@@ -70,48 +70,48 @@ const targetDescriptions: Record<
 const recognitionByAppliance: Record<ApplianceId, RecognizedAppliance> = {
   washing_machine: {
     applianceType: "세탁기",
-    brand: "LG",
-    modelName: "FHP1411Z9P",
+    brand: "unknown",
+    modelName: "unknown",
     estimatedAge: "3-5년",
     exteriorCondition: "생활 스크래치 경미",
     confidence: 88,
   },
   refrigerator: {
     applianceType: "냉장고",
-    brand: "LG",
-    modelName: "GL-T422VPZX",
+    brand: "unknown",
+    modelName: "unknown",
     estimatedAge: "4-6년",
     exteriorCondition: "도어 모서리 사용감",
     confidence: 84,
   },
   air_conditioner: {
     applianceType: "에어컨",
-    brand: "LG",
-    modelName: "US-Q19BNZE3",
+    brand: "unknown",
+    modelName: "unknown",
     estimatedAge: "2-4년",
     exteriorCondition: "실내기 전면 양호",
     confidence: 86,
   },
   microwave: {
     applianceType: "전자레인지",
-    brand: "LG",
-    modelName: "MH8265DIS",
+    brand: "unknown",
+    modelName: "unknown",
     estimatedAge: "5년 이상",
     exteriorCondition: "생활 오염 있음",
     confidence: 79,
   },
   tv: {
     applianceType: "TV",
-    brand: "LG",
-    modelName: "OLED55C4",
+    brand: "unknown",
+    modelName: "unknown",
     estimatedAge: "2-3년",
     exteriorCondition: "패널 외관 양호",
     confidence: 90,
   },
   air_purifier: {
     applianceType: "공기청정기",
-    brand: "LG",
-    modelName: "AS181DWFA",
+    brand: "unknown",
+    modelName: "unknown",
     estimatedAge: "2-4년",
     exteriorCondition: "필터 커버 양호",
     confidence: 82,
@@ -142,13 +142,7 @@ const APPLIANCE_WEIGHTS: Record<ApplianceId, Record<string, number>> = {
   air_purifier: { "소형": 6, "중형": 9, "대형": 13 },
 };
 
-const MOCK_MODEL_WEIGHT_DB: Record<string, number> = {
-  FHP1411Z9P: 74,
-  "GL-T422VPZX": 86,
-  "US-Q19BNZE3": 34,
-  MH8265DIS: 12,
-  OLED55C4: 17,
-};
+const MODEL_WEIGHT_DB: Record<string, number> = {};
 
 const CREDIT_RATIO_MATRIX: Record<string, number[]> = {
   premium: [0.08, 0.1, 0.12],
@@ -167,8 +161,8 @@ function getWeightForCalc(
   weightKg?: number | null,
 ) {
   if (weightKg) return { weight: weightKg, fromDB: true };
-  if (modelName && MOCK_MODEL_WEIGHT_DB[modelName]) {
-    return { weight: MOCK_MODEL_WEIGHT_DB[modelName], fromDB: true };
+  if (modelName && MODEL_WEIGHT_DB[modelName]) {
+    return { weight: MODEL_WEIGHT_DB[modelName], fromDB: true };
   }
 
   const key = normalizeApplianceId(applianceType);

@@ -106,6 +106,8 @@ const defaultPreviewCoordinates: PickupCoordinates = {
   accuracyMeters: 30,
   source: "manual_pin",
 };
+const ADDRESS_LOOKUP_PENDING = "\uC8FC\uC18C\uB97C \uD655\uC778\uD558\uB294 \uC911\uC785\uB2C8\uB2E4.";
+const ADDRESS_LOOKUP_FAILED = "\uC8FC\uC18C\uB97C \uD655\uC778\uD558\uC9C0 \uBABB\uD588\uC5B4\uC694. \uC9C0\uB3C4 \uC704\uCE58\uB97C \uB2E4\uC2DC \uC870\uC815\uD574 \uC8FC\uC138\uC694.";
 const emptyMapMarkers: [] = [];
 const emptyMapPath: [] = [];
 
@@ -244,21 +246,42 @@ function isSecureGpsAvailable() {
   return window.isSecureContext && "geolocation" in navigator;
 }
 
+function formatKoreanDisplayName(value?: string | null) {
+  if (!value) return "";
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized.includes(",")) {
+    return normalized;
+  }
+
+  const parts = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part && part !== "\uB300\uD55C\uBBFC\uAD6D" && part !== "South Korea" && !/^\d{5}$/.test(part));
+
+  return parts.reverse().join(" ").replace(/\s+/g, " ").trim();
+}
+
 async function reverseGeocode(latitude: number, longitude: number) {
   const params = new URLSearchParams({
     format: "json",
     lat: String(latitude),
     lon: String(longitude),
+    t: String(Date.now()),
   });
   params.set("mode", "reverse");
-  const response = await fetch(`/api/geocode?${params.toString()}`);
+  const response = await fetch(`/api/geocode?${params.toString()}`, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error("reverse geocoding failed");
   }
 
-  const data = (await response.json()) as { display_name?: string };
-  return data.display_name ?? `현재 위치 (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
+  const data = (await response.json()) as { display_name?: string | null };
+  const address = formatKoreanDisplayName(data.display_name);
+  if (!address) {
+    throw new Error("reverse geocoding returned no address");
+  }
+  return address;
 }
 
 async function geocodeAddress(query: string) {
@@ -282,7 +305,7 @@ async function geocodeAddress(query: string) {
   }
 
   return {
-    address: first.display_name,
+    address: formatKoreanDisplayName(first.display_name) || first.display_name,
     coordinates: {
       lat: Number(first.lat),
       lng: Number(first.lon),
@@ -405,16 +428,20 @@ function ScheduleBooking({
         accuracyMeters: coords.accuracy,
         source: "browser_geolocation" as const,
       };
-      let nextAddress = `현재 위치 (${nextCoords.lat.toFixed(5)}, ${nextCoords.lng.toFixed(5)})`;
       setPickupCoords(nextPreciseCoords);
-      setPickupAddress(nextAddress);
+      setPickupAddress(ADDRESS_LOOKUP_PENDING);
+      let nextAddress = "";
       try {
         nextAddress = await reverseGeocode(nextCoords.lat, nextCoords.lng);
       } catch {
         // 좌표만으로도 충분히 유효해요.
       }
       setPickupCoords(nextPreciseCoords);
-      setPickupAddress(nextAddress);
+      if (nextAddress) {
+        setPickupAddress(nextAddress);
+      } else {
+        setPickupAddress("");
+      }
     } catch {
       // 위치 권한 거부/실패 시 조용히 무시해요.
     } finally {
@@ -430,15 +457,19 @@ function ScheduleBooking({
     };
     setPickupCoords(preciseCoords);
 
-    let nextAddress = `선택 위치 (${nextCoords.lat.toFixed(5)}, ${nextCoords.lng.toFixed(5)})`;
-    setPickupAddress(nextAddress);
+    let nextAddress = "";
+    setPickupAddress(ADDRESS_LOOKUP_PENDING);
     try {
       nextAddress = await reverseGeocode(nextCoords.lat, nextCoords.lng);
     } catch {
       // 지도 중앙 위치만으로도 예약 좌표는 충분히 저장할 수 있어요.
     }
 
-    setPickupAddress(nextAddress);
+    if (nextAddress) {
+        setPickupAddress(nextAddress);
+      } else {
+        setPickupAddress("");
+      }
   };
 
   useEffect(() => {
@@ -833,11 +864,12 @@ function InstantCallBooking({
   const [matching, setMatching] = useState(false);
 
   const activeCoords = pickupMethod === "gps" ? gpsCoords : manualCoords;
+  const mapCoords = activeCoords ?? gpsCoords ?? manualCoords ?? defaultPreviewCoordinates;
   const mapLabel = locating
-    ? "현재 위치 확인 중..."
+    ? ADDRESS_LOOKUP_PENDING
     : pickupMethod === "gps"
       ? pickupAddress || copy.currentAddressFallback
-      : detailAddress || pickupAddress || copy.addressMapFallback;
+      : pickupAddress || copy.addressMapFallback;
 
   const refreshCurrentLocation = async () => {
     if (!isSecureGpsAvailable()) {
@@ -868,9 +900,9 @@ function InstantCallBooking({
         source: "browser_geolocation" as const,
       };
 
-      let nextAddress = `현재 위치 (${nextCoords.lat.toFixed(5)}, ${nextCoords.lng.toFixed(5)})`;
       setGpsCoords(nextCoords);
-      setPickupAddress(nextAddress);
+      setPickupAddress(ADDRESS_LOOKUP_PENDING);
+      let nextAddress = "";
       try {
         nextAddress = await reverseGeocode(nextCoords.lat, nextCoords.lng);
       } catch {
@@ -878,7 +910,11 @@ function InstantCallBooking({
       }
 
       setGpsCoords(nextCoords);
-      setPickupAddress(nextAddress);
+      if (nextAddress) {
+        setPickupAddress(nextAddress);
+      } else {
+        setPickupAddress("");
+      }
       return { coords: nextCoords, address: nextAddress };
     } catch {
       setGpsCoords(null);
@@ -909,15 +945,19 @@ function InstantCallBooking({
       setManualCoords(preciseCoords);
     }
 
-    let nextAddress = `선택 위치 (${nextCoords.lat.toFixed(5)}, ${nextCoords.lng.toFixed(5)})`;
-    setPickupAddress(nextAddress);
+    let nextAddress = "";
+    setPickupAddress(ADDRESS_LOOKUP_PENDING);
     try {
       nextAddress = await reverseGeocode(nextCoords.lat, nextCoords.lng);
     } catch {
       // Map tapping should still update coordinates even if address lookup fails.
     }
 
-    setPickupAddress(nextAddress);
+    if (nextAddress) {
+        setPickupAddress(nextAddress);
+      } else {
+        setPickupAddress("");
+      }
   };
 
   const startMatching = async () => {
@@ -989,7 +1029,7 @@ function InstantCallBooking({
       <div className="overflow-hidden rounded-3xl bg-slate-50">
         <PickupPreviewMap
           addressLabel={mapLabel}
-          coordinates={activeCoords}
+          coordinates={mapCoords}
           onCoordinateSelect={(coordinates) => void selectMapLocation(coordinates)}
           onLocate={() => void refreshCurrentLocation()}
           locating={locating}
@@ -1242,6 +1282,15 @@ function ManualAddressEditor({
         }
         const data = (await response.json()) as AddressSuggestion[];
         setSuggestions(data);
+        const first = data[0];
+        if (first) {
+          onCoordinateChange({
+            lat: Number(first.lat),
+            lng: Number(first.lon),
+            accuracyMeters: 30,
+            source: "address_geocode",
+          });
+        }
       } catch {
         if (!controller.signal.aborted) {
           setSuggestions([]);
@@ -1257,13 +1306,14 @@ function ManualAddressEditor({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [inputValue]);
+  }, [inputValue, onCoordinateChange]);
 
   const handleSelect = (suggestion: AddressSuggestion) => {
-    setInputValue(suggestion.display_name);
+    const nextAddress = formatKoreanDisplayName(suggestion.display_name) || suggestion.display_name;
+    setInputValue(nextAddress);
     setSuggestions([]);
     setLocationError("");
-    onAddressChange(suggestion.display_name);
+    onAddressChange(nextAddress);
     onCoordinateChange({
       lat: Number(suggestion.lat),
       lng: Number(suggestion.lon),
@@ -1297,7 +1347,7 @@ function ManualAddressEditor({
         source: "browser_geolocation" as const,
       };
 
-      let nextAddress = `현재 위치 (${nextCoords.lat.toFixed(5)}, ${nextCoords.lng.toFixed(5)})`;
+      let nextAddress = ADDRESS_LOOKUP_PENDING;
       setInputValue(nextAddress);
       setSuggestions([]);
       onAddressChange(nextAddress);
@@ -1306,6 +1356,7 @@ function ManualAddressEditor({
         nextAddress = await reverseGeocode(nextCoords.lat, nextCoords.lng);
       } catch {
         // Coordinates are still useful even if reverse geocoding fails.
+        nextAddress = "";
       }
 
       setInputValue(nextAddress);
@@ -1373,7 +1424,9 @@ function ManualAddressEditor({
               onClick={() => handleSelect(suggestion)}
               type="button"
             >
-              <span className="line-clamp-2 text-[12px] font-bold leading-5 text-ink">{suggestion.display_name}</span>
+              <span className="line-clamp-2 text-[12px] font-bold leading-5 text-ink">
+                {formatKoreanDisplayName(suggestion.display_name) || suggestion.display_name}
+              </span>
             </button>
           ))}
         </div>
