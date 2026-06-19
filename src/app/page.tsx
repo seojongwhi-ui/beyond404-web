@@ -11,7 +11,6 @@ import {
   type User as FirebaseUser,
 } from "firebase/auth";
 import {
-  AirVent,
   ArrowLeft,
   BookOpen,
   CalendarDays,
@@ -113,7 +112,6 @@ const applianceOptions = [
   { id: "air_conditioner", label: "에어컨", icon: Wind },
   { id: "microwave", label: "전자레인지", icon: Microwave },
   { id: "tv", label: "TV", icon: Tv },
-  { id: "air_purifier", label: "공기청정기", icon: AirVent },
 ] as const;
 
 type ApplianceId = (typeof applianceOptions)[number]["id"];
@@ -124,7 +122,6 @@ const applianceLabels: Record<ApplianceId, string> = {
   air_conditioner: "에어컨",
   microwave: "전자레인지",
   tv: "TV",
-  air_purifier: "공기청정기",
 };
 
 const applianceTints: Record<ApplianceId, string> = {
@@ -133,7 +130,6 @@ const applianceTints: Record<ApplianceId, string> = {
   air_conditioner: "from-[#e6f6fd] to-[#cdeefb]",
   microwave: "from-[#fdeee6] to-[#fbd9c7]",
   tv: "from-[#eceaff] to-[#d9d6fb]",
-  air_purifier: "from-[#e9f8ec] to-[#d2efd8]",
 };
 
 type HomeTab = "home" | "devices" | "care" | "menu";
@@ -507,8 +503,6 @@ function previewModelNameFor(appliance: ApplianceId) {
       return "MH8265DIS";
     case "tv":
       return "OLED55C4";
-    case "air_purifier":
-      return "AS181DAW";
     default:
       return "FHP1411Z9P";
   }
@@ -1160,6 +1154,14 @@ export default function HomePage() {
                       setSwapItOpened(false);
                       return;
                     }
+                    if (
+                      swapStep === "reservationComplete" ||
+                      swapStep === "ongoing" ||
+                      swapStep === "tracking"
+                    ) {
+                      setSwapItOpened(false);
+                      return;
+                    }
                     setSwapStep(previousStep(swapStep, bookingPurpose));
                   }}
                   onClose={() => {
@@ -1198,6 +1200,12 @@ export default function HomePage() {
                   onSelectPurchaseProduct={setSelectedPurchaseProductId}
                   onBooking={(booking) => bookingMutation.mutate(booking)}
                   onComplete={() => {
+                    if (bookingPurpose === "installation" || Boolean((activeReservationRequest ?? swapRequest)?.selectedProduct)) {
+                      setHomeSwapStatus("none");
+                      setSwapItOpened(false);
+                      return;
+                    }
+
                     setHomeSwapStatus("reviewPending");
                     setSwapStep("credit");
                   }}

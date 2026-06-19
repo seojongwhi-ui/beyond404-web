@@ -504,7 +504,7 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
                   <button
                     key={value}
                     className="flex h-11 w-11 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 transition"
-                    disabled={reviewSubmitting}
+                    disabled={reviewSubmitting || hasSubmittedReview}
                     onClick={() => setReviewRating(value)}
                     type="button"
                   >
@@ -518,7 +518,7 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
 
               <textarea
                 className="mt-4 h-24 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[13px] font-medium text-ink outline-none placeholder:text-slate-400"
-                disabled={reviewSubmitting}
+                disabled={reviewSubmitting || hasSubmittedReview}
                 maxLength={120}
                 onChange={(event) => setReviewComment(event.target.value)}
                 placeholder="크루의 시간 준수, 수거 진행 방식에 대한 후기를 남겨 주세요."
@@ -531,7 +531,7 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
                 </p>
               ) : null}
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className={`mt-4 grid gap-3 ${hasSubmittedReview ? "grid-cols-1" : "grid-cols-2"}`}>
                 <button
                   className="h-12 rounded-2xl border border-slate-200 bg-white text-[13px] font-bold text-slate-700"
                   onClick={onNext}
@@ -539,14 +539,16 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
                 >
                   보상 확인으로 이동
                 </button>
-                <button
-                  className="h-12 rounded-2xl bg-lgred text-[13px] font-bold text-white disabled:bg-slate-300"
-                  disabled={reviewSubmitting}
-                  onClick={() => void handleSubmitReview()}
-                  type="button"
-                >
-                  {reviewSubmitting ? "등록 중..." : hasSubmittedReview ? "평점 다시 등록" : "평점 남기기"}
-                </button>
+                {!hasSubmittedReview ? (
+                  <button
+                    className="h-12 rounded-2xl bg-lgred text-[13px] font-bold text-white disabled:bg-slate-300"
+                    disabled={reviewSubmitting}
+                    onClick={() => void handleSubmitReview()}
+                    type="button"
+                  >
+                    {reviewSubmitting ? "등록 중..." : "평점 남기기"}
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : null}
