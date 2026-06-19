@@ -207,7 +207,13 @@ export function analyzePhoto(id: number, payload: CapturePayload) {
       exteriorPhotoFileName: payload.exteriorPhotoFileName,
       labelPhotoFileName: payload.labelPhotoFileName,
       imageUrl: payload.labelPhotoUrl ?? payload.exteriorPhotoUrl ?? payload.exteriorPhotoFileName,
+      exteriorImageUrl: payload.exteriorPhotoUrl,
+      labelImageUrl: payload.labelPhotoUrl,
       applianceType: payload.applianceType,
+      brand: payload.brand,
+      modelName: payload.modelName,
+      estimatedAge: payload.estimatedAge,
+      exteriorCondition: payload.exteriorCondition,
       agreedToCreditPolicy: payload.agreedToCreditPolicy,
     }),
   });

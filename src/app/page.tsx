@@ -493,6 +493,14 @@ function isNotFoundApiError(error: unknown) {
   return error instanceof Error && /not found|404/i.test(error.message);
 }
 
+function preferKnownValue(serverValue?: string | null, localValue?: string | null) {
+  const normalized = serverValue?.trim();
+  if (!normalized || normalized.toLowerCase() === "unknown" || normalized.toLowerCase() === "null") {
+    return localValue ?? "";
+  }
+  return normalized;
+}
+
 function previewModelNameFor(appliance: ApplianceId) {
   switch (appliance) {
     case "refrigerator":
@@ -675,8 +683,8 @@ export default function HomePage() {
 
       return updateAppliance(analyzed.id, {
         ...submission,
-        brand: analyzed.appliance.brand ?? submission.brand,
-        modelName: analyzed.appliance.modelName ?? submission.modelName,
+        brand: preferKnownValue(analyzed.appliance.brand, submission.brand),
+        modelName: preferKnownValue(analyzed.appliance.modelName, submission.modelName),
       });
     },
     onSuccess: (data) => {
