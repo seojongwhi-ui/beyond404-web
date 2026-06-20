@@ -428,8 +428,16 @@ export function CapturePanel({
         let nextInfo = recognizedInfo;
 
         // 1단계: 스티커 OCR → 브랜드 + 모델명 텍스트 추출
-        const labelResult = await callLabelApi(stickerImageData);
-        if (isStale()) return;
+        let labelResult: { brand?: string; modelName?: string } = {};
+
+        try {
+          labelResult = await callLabelApi(stickerImageData);
+          if (isStale()) return;
+        } catch {
+          // In production, /api/analyze-label can be routed to Spring and return 404.
+          // The Spring photo analysis below is the reliable source, so keep going.
+          labelResult = {};
+        }
 
         const mergedModelName = knownText(labelResult.modelName) || knownText(prevModelName);
         const mergedBrand = knownText(labelResult.brand) || knownText(prevBrand);
