@@ -19,12 +19,14 @@ type CreditPanelProps = {
   fileName: string;
   reviewStatus: ReviewStatus;
   bookingPurpose?: "pickup" | "installation";
+  showMarketButton?: boolean;
   swapRequest: SwapRequest | null;
   loading: boolean;
   onFinalize: () => void;
   onRequestReReview: () => void;
   onOpenMarket: () => void;
   onReturnHome: () => void;
+  onCreditReturnHome?: () => void;
   onCreditIssued?: () => void;
 };
 
@@ -32,12 +34,14 @@ export function CreditPanel({
   fileName,
   reviewStatus,
   bookingPurpose = "pickup",
+  showMarketButton = bookingPurpose === "pickup",
   swapRequest,
   loading,
   onFinalize,
   onRequestReReview,
   onOpenMarket,
   onReturnHome,
+  onCreditReturnHome,
   onCreditIssued,
 }: CreditPanelProps) {
   const [reReviewOpen, setReReviewOpen] = useState(false);
@@ -69,9 +73,12 @@ export function CreditPanel({
       ) : creditIssued ? (
         <CreditIssuedView
           amount={displayCreditAmount}
-          showMarketButton={bookingPurpose === "pickup"}
-          onReturnHome={onReturnHome}
-          onUseCredit={onOpenMarket}
+          showMarketButton={showMarketButton}
+          onReturnHome={onCreditReturnHome ?? onReturnHome}
+          onUseCredit={() => {
+            onCreditReturnHome?.();
+            onOpenMarket();
+          }}
         />
       ) : (reviewStatus === "reviewCompleted" || reviewStatus === "reReviewCompleted") &&
         (displayCreditAmount > 0 || finalResultOpen || showReReviewResult) ? (

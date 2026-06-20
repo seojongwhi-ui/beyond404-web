@@ -1265,6 +1265,10 @@ export default function HomePage() {
                     setMarketOpened(true);
                   }}
                   onReturnHome={() => setSwapItOpened(false)}
+                  onCreditReturnHome={() => {
+                    setHomeSwapStatus("none");
+                    setSwapItOpened(false);
+                  }}
                   onChangeReservation={() => setSwapStep("booking")}
                   onCancelReservation={cancelActiveReservation}
                   onCloseReservationComplete={() => setSwapItOpened(false)}
@@ -2410,6 +2414,7 @@ function SwapItFeatureScreen(props: {
   onRequestReReview: () => void;
   onOpenMarket: () => void;
   onReturnHome: () => void;
+  onCreditReturnHome: () => void;
   onChangeReservation: () => void;
   onCancelReservation: () => void;
   onCloseReservationComplete: () => void;
@@ -2584,6 +2589,7 @@ function SwapItFeatureScreen(props: {
             fileName={props.fileName}
             reviewStatus={props.homeSwapStatus}
             bookingPurpose={props.bookingPurpose}
+            showMarketButton={props.selectedPurchaseProductId == null}
             swapRequest={props.swapRequest}
             loading={props.creditLoading}
             onFinalize={props.onFinalize}
@@ -2591,6 +2597,7 @@ function SwapItFeatureScreen(props: {
             onRequestReReview={props.onRequestReReview}
             onOpenMarket={props.onOpenMarket}
             onReturnHome={props.onReturnHome}
+            onCreditReturnHome={props.onCreditReturnHome}
           />
         ) : null}
       </div>
