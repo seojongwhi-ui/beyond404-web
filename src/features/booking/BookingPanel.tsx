@@ -328,7 +328,7 @@ async function geocodeAddress(query: string) {
 
 export function BookingPanel({ swapRequest, loading, bookingPurpose = "pickup", errorMessage, onBooking }: BookingPanelProps) {
   const [mode, setMode] = useState<BookingMode>("schedule");
-  const canBook = Boolean(swapRequest && swapRequest.preValuation.maxEstimatedValue > 0);
+  const canBook = Boolean(swapRequest);
   const copy = bookingCopies[bookingPurpose];
   const allowInstantCall = true;
 
@@ -532,6 +532,10 @@ function ScheduleBooking({
   const selectedSlot = availabilityByTime.get(selectedTime);
   const selectedTimeUnavailable = selectedSlot ? !selectedSlot.available || isPastTimeSlot(selectedDate, selectedTime) : false;
   const previewCoordinates = pickupCoords ?? defaultPreviewCoordinates;
+  const hasPickupAddress =
+    pickupAddress.trim().length > 0 &&
+    pickupAddress !== ADDRESS_LOOKUP_PENDING &&
+    pickupAddress !== ADDRESS_LOOKUP_FAILED;
 
   return (
     <div>
@@ -588,19 +592,17 @@ function ScheduleBooking({
 
       <button
         className="mt-4 h-12 w-full rounded-2xl bg-[#202632] text-[13px] font-bold text-white disabled:bg-slate-300"
-        disabled={!canBook || loading || !selectedDate || !pickupCoords || availabilityLoading || selectedTimeUnavailable}
+        disabled={!canBook || loading || !selectedDate || !selectedTime || !hasPickupAddress || availabilityLoading}
         onClick={() => {
-          if (!pickupCoords) return;
-
           onBooking({
             mode: "schedule",
             reservedAt: formatReservedAt(selectedDate, selectedTime),
             pickupAddress,
             detailAddress,
-            pickupLat: pickupCoords.lat,
-            pickupLng: pickupCoords.lng,
-            pickupAccuracyMeters: pickupCoords.accuracyMeters,
-            pickupSource: pickupCoords.source,
+            pickupLat: pickupCoords?.lat,
+            pickupLng: pickupCoords?.lng,
+            pickupAccuracyMeters: pickupCoords?.accuracyMeters,
+            pickupSource: pickupCoords?.source,
             bookingDate: selectedDate,
             bookingTime: selectedTime,
           });

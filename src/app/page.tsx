@@ -62,6 +62,7 @@ import {
   firebaseLogin,
   getLatestSwapRequest,
   getSwapRequest,
+  issueCredit,
   updateAppliance,
   type DemoUser,
 } from "@/lib/api";
@@ -829,6 +830,20 @@ export default function HomePage() {
     },
   });
 
+  const issueCreditMutation = useMutation({
+    mutationFn: async () => {
+      const currentRequest = activeReservationRequest ?? swapRequest;
+      if (!currentRequest) throw new Error("Swap request is required");
+      return issueCredit(currentRequest.id);
+    },
+    onSuccess: (data) => {
+      setSwapRequest(data);
+      setActiveReservationRequest(data);
+      setHomeSwapStatus("reviewCompleted");
+      setSwapStep("credit");
+    },
+  });
+
   const acceptValuationMutation = useMutation({
     mutationFn: async (nextStep: "market" | "booking") => {
       if (!swapRequest) {
@@ -853,12 +868,14 @@ export default function HomePage() {
     analyzeMutation.isPending ||
     acceptValuationMutation.isPending ||
     bookingMutation.isPending ||
-    creditMutation.isPending;
+    creditMutation.isPending ||
+    issueCreditMutation.isPending;
 
   const error =
     createMutation.error ??
     acceptValuationMutation.error ??
-    creditMutation.error;
+    creditMutation.error ??
+    issueCreditMutation.error;
 
   const resetExchangeFlow = () => {
     setFileName("");
@@ -1180,7 +1197,7 @@ export default function HomePage() {
                         ? "예약을 완료하지 못했어요. 네트워크 상태를 확인하고 다시 시도하거나, 처음부터 다시 진행해 주세요."
                       : ""
                   }
-                  creditLoading={creditMutation.isPending}
+                  creditLoading={creditMutation.isPending || issueCreditMutation.isPending}
                   onBack={() => {
                     if (swapStep === "intro") {
                       setSwapItOpened(false);
@@ -1233,17 +1250,10 @@ export default function HomePage() {
                   onSelectPurchaseProduct={setSelectedPurchaseProductId}
                   onBooking={(booking) => bookingMutation.mutate(booking)}
                   onComplete={() => {
-                    if (bookingPurpose === "installation" || Boolean((activeReservationRequest ?? swapRequest)?.selectedProduct)) {
-                      setHomeSwapStatus("none");
-                      setSwapItOpened(false);
-                      return;
-                    }
-
-                    setHomeSwapStatus("reviewPending");
-                    setSwapStep("credit");
+                    creditMutation.mutate();
                   }}
                   onFinalize={() => creditMutation.mutate()}
-                  onCreditIssued={() => setHomeSwapStatus("none")}
+                  onCreditIssued={() => issueCreditMutation.mutate()}
                   onRequestReReview={() => {
                     setHomeSwapStatus("reReviewPending");
                     setSwapStep("credit");
@@ -2573,6 +2583,7 @@ function SwapItFeatureScreen(props: {
           <CreditPanel
             fileName={props.fileName}
             reviewStatus={props.homeSwapStatus}
+            bookingPurpose={props.bookingPurpose}
             swapRequest={props.swapRequest}
             loading={props.creditLoading}
             onFinalize={props.onFinalize}

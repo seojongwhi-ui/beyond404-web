@@ -1,15 +1,8 @@
-"use client";
+﻿"use client";
 
 import { Service3DIcon } from "@/components/Service3DIcon";
 import type { SwapRequest } from "@/types/swap";
-import {
-  AlertCircle,
-  Home,
-  Image as ImageIcon,
-  Loader2,
-  MessageSquare,
-  Send,
-} from "lucide-react";
+import { AlertCircle, Home, Image as ImageIcon, Loader2, MessageSquare, Send } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
@@ -25,6 +18,7 @@ type ReviewStatus =
 type CreditPanelProps = {
   fileName: string;
   reviewStatus: ReviewStatus;
+  bookingPurpose?: "pickup" | "installation";
   swapRequest: SwapRequest | null;
   loading: boolean;
   onFinalize: () => void;
@@ -37,6 +31,7 @@ type CreditPanelProps = {
 export function CreditPanel({
   fileName,
   reviewStatus,
+  bookingPurpose = "pickup",
   swapRequest,
   loading,
   onFinalize,
@@ -47,6 +42,7 @@ export function CreditPanel({
 }: CreditPanelProps) {
   const [reReviewOpen, setReReviewOpen] = useState(false);
   const [showReReviewResult, setShowReReviewResult] = useState(false);
+  const [finalResultOpen, setFinalResultOpen] = useState(false);
   const [creditIssued, setCreditIssued] = useState(false);
   const credit = swapRequest?.credit;
   const displayCreditAmount =
@@ -70,27 +66,33 @@ export function CreditPanel({
         <ReReviewPendingView onReturnHome={onReturnHome} />
       ) : reviewStatus === "reReviewCompleted" && !showReReviewResult ? (
         <ReReviewReadyView onOpenResult={() => setShowReReviewResult(true)} />
-      ) : credit || (reviewStatus === "reviewCompleted" && displayCreditAmount > 0) ? (
-        creditIssued ? (
-          <CreditIssuedView
-            amount={displayCreditAmount}
-            onReturnHome={onReturnHome}
-            onUseCredit={onOpenMarket}
-          />
-        ) : (
-          <FinalCreditView
-            amount={displayCreditAmount}
-            allowReReview={reviewStatus !== "reReviewCompleted"}
-            fileName={fileName}
-            onIssueCredit={() => {
-              setCreditIssued(true);
-              onCreditIssued?.();
-            }}
-            onReReview={() => setReReviewOpen(true)}
-          />
-        )
+      ) : creditIssued ? (
+        <CreditIssuedView
+          amount={displayCreditAmount}
+          showMarketButton={bookingPurpose === "pickup"}
+          onReturnHome={onReturnHome}
+          onUseCredit={onOpenMarket}
+        />
+      ) : (reviewStatus === "reviewCompleted" || reviewStatus === "reReviewCompleted") &&
+        (displayCreditAmount > 0 || finalResultOpen || showReReviewResult) ? (
+        <FinalCreditView
+          amount={displayCreditAmount}
+          allowReReview={reviewStatus !== "reReviewCompleted"}
+          fileName={fileName}
+          onIssueCredit={() => {
+            setCreditIssued(true);
+            onCreditIssued?.();
+          }}
+          onReReview={() => setReReviewOpen(true)}
+        />
       ) : reviewStatus === "reviewCompleted" ? (
-        <ReviewReadyView loading={loading} onFinalize={onFinalize} />
+        <ReviewReadyView
+          loading={loading}
+          onFinalize={() => {
+            setFinalResultOpen(true);
+            onFinalize();
+          }}
+        />
       ) : (
         <PendingReviewView loading={loading} onReturnHome={onReturnHome} />
       )}
@@ -98,13 +100,7 @@ export function CreditPanel({
   );
 }
 
-function PendingReviewView({
-  loading,
-  onReturnHome,
-}: {
-  loading: boolean;
-  onReturnHome: () => void;
-}) {
+function PendingReviewView({ loading, onReturnHome }: { loading: boolean; onReturnHome: () => void }) {
   return (
     <>
       <div className="mt-4 rounded-3xl border border-lgred/15 bg-lgred/5 p-5 text-center">
@@ -112,43 +108,43 @@ function PendingReviewView({
           {loading ? <Loader2 className="animate-spin" size={30} /> : <Service3DIcon type="clipboard" className="h-16 w-16" />}
         </div>
         <p className="mt-4 text-xs font-semibold text-lgred">최종 검수 중</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink">수거품을 확인하고 있어요</h2>
+        <h2 className="mt-2 text-2xl font-bold text-ink">수거품을 확인하고 있어요</h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+          수거 완료 후 검수와 최종 보상가 산정이 진행됩니다.
+        </p>
       </div>
 
       <div className="mt-4 space-y-3">
         <ReviewRow done icon={<Service3DIcon type="check" className="h-9 w-9" />} title="수거 완료" description="가전이 LG 검수 프로세스로 이동했어요." />
         <ReviewRow icon={<Service3DIcon type="search" className="h-9 w-9" />} title="추가 검수 진행" description="외관, 부품 재사용 가능성, 원자재 가치를 확인합니다." />
-        <ReviewRow icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="ThinQ 알림 발송 예정" description="검수 완료 후 감정결과를 안내합니다." />
+        <ReviewRow icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="ThinQ 알림 발송 예정" description="검수 완료 후 감정 결과를 안내합니다." />
       </div>
 
       <button className="mt-auto h-12 w-full rounded-xl bg-lgred text-sm font-bold text-white" onClick={onReturnHome}>
         <span className="inline-flex items-center gap-2">
           <Home size={17} />
-          ThinQ 홈으로 돌아가기
+          홈으로 돌아가기
         </span>
       </button>
     </>
   );
 }
 
-function ReviewReadyView({
-  loading,
-  onFinalize,
-}: {
-  loading: boolean;
-  onFinalize: () => void;
-}) {
+function ReviewReadyView({ loading, onFinalize }: { loading: boolean; onFinalize: () => void }) {
   return (
     <>
       <div className="mt-4 rounded-3xl border border-lgred/20 bg-lgred/10 p-6 text-center">
         <Service3DIcon type="bell" className="mx-auto h-16 w-16" />
         <p className="mt-4 text-xs font-semibold text-lgred">검수 완료</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink">감정결과가 준비됐어요</h2>
+        <h2 className="mt-2 text-2xl font-bold text-ink">감정 결과가 준비됐어요</h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+          최종 검수 결과를 불러오면 크레딧 금액을 확인할 수 있어요.
+        </p>
       </div>
 
       <div className="mt-4 space-y-3">
         <ReviewRow done icon={<Service3DIcon type="check" className="h-9 w-9" />} title="최종 검수 완료" description="수거품 확인이 끝났어요." />
-        <ReviewRow done icon={<Service3DIcon type="clipboard" className="h-9 w-9" />} title="감정 결과 생성" description="사진, 외관, 부품 상태를 반영했습니다." />
+        <ReviewRow done icon={<Service3DIcon type="clipboard" className="h-9 w-9" />} title="감정 결과 생성" description="사진, 연식, 부품 상태를 반영했습니다." />
         <ReviewRow done icon={<Service3DIcon type="credit" className="h-9 w-9" />} title="크레딧 산정 완료" description="확정 금액 확인 후 크레딧을 받을 수 있어요." />
       </div>
 
@@ -157,7 +153,7 @@ function ReviewReadyView({
         disabled={loading}
         onClick={onFinalize}
       >
-        {loading ? "검수 결과 불러오는 중" : "검수 결과 확인하러가기"}
+        {loading ? "검수 결과를 불러오는 중" : "검수 결과 확인하러 가기"}
       </button>
     </>
   );
@@ -171,19 +167,19 @@ function ReReviewPendingView({ onReturnHome }: { onReturnHome: () => void }) {
           <Loader2 className="animate-spin" size={30} />
         </div>
         <p className="mt-4 text-xs font-semibold text-lgred">재검수 중</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink">요청 내용을 다시 확인하고 있어요</h2>
+        <h2 className="mt-2 text-2xl font-bold text-ink">요청 내용을 다시 확인하고 있어요</h2>
       </div>
 
       <div className="mt-4 space-y-3">
         <ReviewRow done icon={<Service3DIcon type="clipboard" className="h-9 w-9" />} title="재검수 요청 접수" description="작성한 사유가 검수 담당자에게 전달됐어요." />
         <ReviewRow icon={<Service3DIcon type="search" className="h-9 w-9" />} title="결과 재확인" description="외관 상태, 부품 가치, 처리 비용을 다시 확인합니다." />
-        <ReviewRow icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="완료 알림 예정" description="재검수가 끝나면 ThinQ 홈에서 바로 확인할 수 있어요." />
+        <ReviewRow icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="완료 알림 예정" description="재검수가 끝나면 ThinQ 앱에서 바로 확인할 수 있어요." />
       </div>
 
       <button className="mt-auto h-12 w-full rounded-xl bg-lgred text-sm font-bold text-white" onClick={onReturnHome}>
         <span className="inline-flex items-center gap-2">
           <Home size={17} />
-          ThinQ 홈으로 돌아가기
+          홈으로 돌아가기
         </span>
       </button>
     </>
@@ -196,13 +192,13 @@ function ReReviewReadyView({ onOpenResult }: { onOpenResult: () => void }) {
       <div className="mt-4 rounded-3xl border border-lgred/20 bg-lgred/10 p-6 text-center">
         <Service3DIcon type="check" className="mx-auto h-16 w-16" />
         <p className="mt-4 text-xs font-semibold text-lgred">재검수 완료</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink">재검수 결과가 준비됐어요</h2>
+        <h2 className="mt-2 text-2xl font-bold text-ink">재검수 결과가 준비됐어요</h2>
       </div>
 
       <div className="mt-4 space-y-3">
         <ReviewRow done icon={<Service3DIcon type="clipboard" className="h-9 w-9" />} title="요청 사유 확인" description="고객이 작성한 내용을 기준으로 다시 검토했습니다." />
         <ReviewRow done icon={<Service3DIcon type="check" className="h-9 w-9" />} title="재검수 완료" description="외관과 부품 가치를 한 번 더 확인했습니다." />
-        <ReviewRow done icon={<Service3DIcon type="credit" className="h-9 w-9" />} title="최종 크레딧 유지" description="확정된 크레딧 결과를 다시 안내합니다." />
+        <ReviewRow done icon={<Service3DIcon type="credit" className="h-9 w-9" />} title="최종 크레딧 확정" description="확정된 크레딧 결과를 다시 안내합니다." />
       </div>
 
       <button className="mt-auto h-12 w-full rounded-xl bg-lgred text-sm font-bold text-white" onClick={onOpenResult}>
@@ -227,43 +223,38 @@ function FinalCreditView({
 }) {
   return (
     <div className="mt-4 flex flex-col">
-      <div>
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
-          <div className="flex h-24 items-center justify-center bg-[radial-gradient(circle_at_50%_40%,rgba(165,0,52,.18),transparent_30%),linear-gradient(145deg,#252936,#111318)] text-white">
-            <div className="text-center">
-              <ImageIcon className="mx-auto text-white/80" size={30} />
-              <p className="mt-2 max-w-[240px] truncate text-xs font-bold text-white/70">
-                {fileName || "촬영된 가전 사진"}
-              </p>
-            </div>
-          </div>
-          <div className="p-3">
-            <p className="text-xs font-semibold text-lgred">받을 크레딧</p>
-            <p className="mt-1 text-3xl font-bold leading-none text-ink">{amount.toLocaleString()} 크레딧</p>
-            <p className="mt-2 text-xs leading-4 text-slate-500">
-              최종 검수 결과를 기준으로 확정된 보상 크레딧입니다.
+      <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+        <div className="flex h-36 items-center justify-center bg-[radial-gradient(circle_at_50%_40%,rgba(165,0,52,.18),transparent_30%),linear-gradient(145deg,#252936,#111318)] text-white">
+          <div className="text-center">
+            <ImageIcon className="mx-auto text-white/80" size={34} />
+            <p className="mt-3 max-w-[260px] truncate text-sm font-bold text-white/75">
+              {fileName || "촬영한 제품 이미지"}
             </p>
           </div>
         </div>
-
-        <div className="mt-3 space-y-2 pb-1">
-          <ValuationReason title="외관 상태" description="전면 사용 흔적은 있으나 주요 파손은 확인되지 않았습니다." />
-          <ValuationReason title="부품 재사용 가능성" description="일부 내부 부품은 재사용 가능성이 있어 보상가에 반영했습니다." />
-          <ValuationReason title="원자재 가치" description="금속/플라스틱 회수 가능 가치를 기준으로 기본 금액을 산정했습니다." />
-          <ValuationReason title="처리 비용" description="수거, 분류, 안전 해체 비용을 차감해 최종 금액을 확정했습니다." />
+        <div className="p-4">
+          <p className="text-sm font-black text-lgred">최종 감정가</p>
+          <p className="mt-2 text-4xl font-black leading-none text-ink">₩{amount.toLocaleString("ko-KR")}</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
+            추가 검수 결과를 기준으로 산정된 확정 금액입니다.
+          </p>
         </div>
       </div>
 
-      <div className={`mt-3 grid gap-2 ${allowReReview ? "grid-cols-2" : "grid-cols-1"}`}>
+      <div className="mt-4 space-y-3">
+        <ValuationReason title="외관 상태" description="전면 사용 흔적은 있으나 주요 파손은 확인되지 않았습니다." />
+        <ValuationReason title="부품 재사용 가능성" description="일부 내부 부품은 재사용 가능성이 있어 보상가에 반영했습니다." />
+        <ValuationReason title="원자재 가치" description="금속/플라스틱 회수 가능 가치를 기준으로 기본 금액을 산정했습니다." />
+        <ValuationReason title="처리 비용" description="수거, 분류, 안전 해체 비용을 차감해 최종 금액을 확정했습니다." />
+      </div>
+
+      <div className={`mt-5 grid gap-3 ${allowReReview ? "grid-cols-2" : "grid-cols-1"}`}>
         <button className="h-12 rounded-xl bg-lgred text-sm font-bold text-white" onClick={onIssueCredit}>
-          ????????
+          크레딧 받기
         </button>
         {allowReReview ? (
-          <button
-            className="h-12 rounded-xl border border-lgred/20 bg-white text-sm font-bold text-lgred"
-            onClick={onReReview}
-          >
-            ????????
+          <button className="h-12 rounded-xl border border-lgred/20 bg-white text-sm font-bold text-lgred" onClick={onReReview}>
+            재검수 요청
           </button>
         ) : null}
       </div>
@@ -273,64 +264,49 @@ function FinalCreditView({
 
 function CreditIssuedView({
   amount,
+  showMarketButton,
   onReturnHome,
   onUseCredit,
 }: {
   amount: number;
+  showMarketButton: boolean;
   onReturnHome: () => void;
   onUseCredit: () => void;
 }) {
   return (
     <>
-      <div className="mt-4 rounded-3xl border border-lgred/20 bg-lgred/10 p-6 text-center">
+      <div className="mt-4 rounded-[24px] border border-lgred/20 bg-lgred/10 p-6 text-center">
         <Service3DIcon type="credit" className="mx-auto h-16 w-16" />
         <p className="mt-4 text-xs font-semibold text-lgred">크레딧 발급 완료</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink">{amount.toLocaleString()} 크레딧을 받았어요</h2>
+        <h2 className="mt-2 text-2xl font-bold leading-snug text-ink">₩{amount.toLocaleString("ko-KR")} 크레딧을 받았어요</h2>
+        <p className="mx-auto mt-4 max-w-[300px] text-sm font-semibold leading-6 text-slate-500">
+          발급된 크레딧은 ThinQ 안에서 새 LG 가전을 구매하거나 교체 예약을 진행할 때 사용할 수 있습니다.
+        </p>
       </div>
 
       <div className="mt-4 space-y-3">
-        <ReviewRow
-          done
-          icon={<Service3DIcon type="check" className="h-9 w-9" />}
-          title="ThinQ 크레딧 지갑에 저장"
-          description="발급 금액은 내 크레딧 내역에 자동으로 반영됩니다."
-        />
-        <ReviewRow
-          done
-          icon={<Service3DIcon type="credit" className="h-9 w-9" />}
-          title="LG 제품 구매 시 사용"
-          description="결제 단계에서 보유 크레딧을 선택하면 구매 금액에서 차감됩니다."
-        />
-        <ReviewRow
-          done
-          icon={<Service3DIcon type="bell" className="h-9 w-9" />}
-          title="사용 기한 알림"
-          description="크레딧 만료 전 ThinQ 알림으로 다시 안내받을 수 있습니다."
-        />
+        <ReviewRow done icon={<Service3DIcon type="check" className="h-9 w-9" />} title="ThinQ 크레딧 지갑에 저장" description="발급 금액은 내 크레딧 내역에 자동으로 반영됩니다." />
+        <ReviewRow done icon={<Service3DIcon type="credit" className="h-9 w-9" />} title="LG 제품 구매 시 사용" description="결제 단계에서 보유 크레딧을 선택하면 구매 금액에서 차감됩니다." />
+        <ReviewRow done icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="사용 기한 알림" description="크레딧 만료 전 ThinQ 알림으로 다시 안내받을 수 있습니다." />
       </div>
 
-      <div className="mt-auto grid grid-cols-1 gap-2">
-        <button
-          className="h-12 w-full rounded-xl border border-lgred/20 bg-white text-sm font-bold text-lgred"
-          onClick={onReturnHome}
-        >
+      <div className={`mt-auto grid gap-3 pt-5 ${showMarketButton ? "grid-cols-2" : "grid-cols-1"}`}>
+        <button className="h-12 w-full rounded-xl border border-lgred/20 bg-white text-sm font-bold text-lgred" onClick={onReturnHome}>
           <span className="inline-flex items-center gap-2">
             <Home size={17} />
-            ?????
+            홈으로
           </span>
         </button>
+        {showMarketButton ? (
+          <button className="h-12 w-full rounded-xl bg-lgred text-sm font-bold text-white" onClick={onUseCredit}>
+            크레딧으로 구매하기
+          </button>
+        ) : null}
       </div>
     </>
   );
 }
-
-function ReReviewForm({
-  onBack,
-  onSubmit,
-}: {
-  onBack: () => void;
-  onSubmit: () => void;
-}) {
+function ReReviewForm({ onBack, onSubmit }: { onBack: () => void; onSubmit: () => void }) {
   const [reason, setReason] = useState("");
 
   return (
@@ -338,7 +314,7 @@ function ReReviewForm({
       <div className="flex items-center gap-2 text-sm font-bold text-lgred">
         <AlertCircle size={18} />
         재검수 요청
-      </div>
+      </div>
 
       <div className="mt-5 rounded-2xl bg-slate-50 p-4">
         <div className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
@@ -353,11 +329,7 @@ function ReReviewForm({
         />
       </div>
 
-      <button
-        className="mt-auto h-12 rounded-xl bg-lgred text-sm font-bold text-white disabled:bg-slate-300"
-        disabled={reason.trim().length < 5}
-        onClick={onSubmit}
-      >
+      <button className="mt-auto h-12 rounded-xl bg-lgred text-sm font-bold text-white disabled:bg-slate-300" disabled={reason.trim().length < 5} onClick={onSubmit}>
         <span className="inline-flex items-center gap-2">
           <Send size={17} />
           재검수 요청하기
@@ -372,9 +344,9 @@ function ReReviewForm({
 
 function ValuationReason({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-3">
-      <p className="text-sm font-bold text-ink">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-base font-bold text-ink">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -391,10 +363,8 @@ function ReviewRow({
   description: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-2xl bg-slate-50 p-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center">
-        {icon}
-      </span>
+    <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-3">
+      <div className={`rounded-xl ${done ? "bg-lgred/10 text-lgred" : "bg-slate-200 text-slate-500"}`}>{icon}</div>
       <div>
         <p className="text-sm font-bold text-ink">{title}</p>
         <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
@@ -402,3 +372,4 @@ function ReviewRow({
     </div>
   );
 }
+
