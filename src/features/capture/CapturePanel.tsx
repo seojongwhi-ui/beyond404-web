@@ -984,13 +984,6 @@ export function CapturePanel({
             <Camera size={30} />
           </span>
         </button>
-        <button
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-[10px] font-semibold text-white"
-          onClick={createDemoCapture}
-          type="button"
-        >
-          DEMO
-        </button>
       </div>
     </section>
   );

@@ -4,7 +4,7 @@ import { Service3DIcon } from "@/components/Service3DIcon";
 import type { SwapRequest } from "@/types/swap";
 import { AlertCircle, Home, Image as ImageIcon, Loader2, MessageSquare, Send } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ReviewStatus =
   | "none"
@@ -48,13 +48,24 @@ export function CreditPanel({
   const [showReReviewResult, setShowReReviewResult] = useState(false);
   const [finalResultOpen, setFinalResultOpen] = useState(false);
   const [creditIssued, setCreditIssued] = useState(false);
+  const issueCreditTriggeredRef = useRef(false);
   const credit = swapRequest?.credit;
+  const issuedCreditAmount = credit?.amount && credit.amount > 0 ? credit.amount : undefined;
   const displayCreditAmount =
-    credit?.amount ??
+    issuedCreditAmount ??
     swapRequest?.finalValuation?.amount ??
     swapRequest?.rewardEstimate?.estimatedFinalCredit ??
     swapRequest?.preValuation.maxEstimatedValue ??
     0;
+  const amcProductLabel = swapRequest?.selectedProduct?.productName ?? applianceLabelFor(swapRequest?.appliance.applianceType);
+  const reviewCompleted = reviewStatus === "reviewCompleted" || reviewStatus === "reReviewCompleted";
+
+  useEffect(() => {
+    if (!reviewCompleted || credit?.amount || issueCreditTriggeredRef.current) return;
+
+    issueCreditTriggeredRef.current = true;
+    onCreditIssued?.();
+  }, [credit?.amount, onCreditIssued, reviewCompleted]);
 
   if (reReviewOpen) {
     return (
@@ -68,36 +79,15 @@ export function CreditPanel({
     <section className="flex min-h-full flex-col rounded-[28px] bg-white p-5 shadow-sm">
       {reviewStatus === "reReviewPending" ? (
         <ReReviewPendingView onReturnHome={onReturnHome} />
-      ) : reviewStatus === "reReviewCompleted" && !showReReviewResult ? (
-        <ReReviewReadyView onOpenResult={() => setShowReReviewResult(true)} />
-      ) : creditIssued ? (
+      ) : reviewCompleted || credit || creditIssued ? (
         <CreditIssuedView
           amount={displayCreditAmount}
+          amcProductLabel={amcProductLabel}
           showMarketButton={showMarketButton}
           onReturnHome={onCreditReturnHome ?? onReturnHome}
           onUseCredit={() => {
             onCreditReturnHome?.();
             onOpenMarket();
-          }}
-        />
-      ) : (reviewStatus === "reviewCompleted" || reviewStatus === "reReviewCompleted") &&
-        (displayCreditAmount > 0 || finalResultOpen || showReReviewResult) ? (
-        <FinalCreditView
-          amount={displayCreditAmount}
-          allowReReview={reviewStatus !== "reReviewCompleted"}
-          fileName={fileName}
-          onIssueCredit={() => {
-            setCreditIssued(true);
-            onCreditIssued?.();
-          }}
-          onReReview={() => setReReviewOpen(true)}
-        />
-      ) : reviewStatus === "reviewCompleted" ? (
-        <ReviewReadyView
-          loading={loading}
-          onFinalize={() => {
-            setFinalResultOpen(true);
-            onFinalize();
           }}
         />
       ) : (
@@ -271,30 +261,50 @@ function FinalCreditView({
 
 function CreditIssuedView({
   amount,
+  amcProductLabel,
   showMarketButton,
   onReturnHome,
   onUseCredit,
 }: {
   amount: number;
+  amcProductLabel: string;
   showMarketButton: boolean;
   onReturnHome: () => void;
   onUseCredit: () => void;
 }) {
+  const isPurchaseBenefit = !showMarketButton;
+
   return (
     <>
       <div className="mt-4 rounded-[24px] border border-lgred/20 bg-lgred/10 p-6 text-center">
         <Service3DIcon type="credit" className="mx-auto h-16 w-16" />
-        <p className="mt-4 text-xs font-semibold text-lgred">크레딧 발급 완료</p>
-        <h2 className="mt-2 text-2xl font-bold leading-snug text-ink">₩{amount.toLocaleString("ko-KR")} 크레딧을 받았어요</h2>
+        <p className="mt-4 text-xs font-semibold text-lgred">
+          {isPurchaseBenefit ? "AMC 혜택 적용 예정" : "크레딧 발급 완료"}
+        </p>
+        <h2 className="mt-2 text-2xl font-bold leading-snug text-ink">
+          {isPurchaseBenefit ? `${amcProductLabel} AMC 골드 3년 서비스 예정` : `₩${amount.toLocaleString("ko-KR")} 크레딧을 받았어요`}
+        </h2>
         <p className="mx-auto mt-4 max-w-[300px] text-sm font-semibold leading-6 text-slate-500">
-          발급된 크레딧은 ThinQ 안에서 새 LG 가전을 구매하거나 교체 예약을 진행할 때 사용할 수 있습니다.
+          {isPurchaseBenefit
+            ? "선택한 LG 가전 구매 혜택에 AMC 서비스가 함께 적용될 예정입니다."
+            : "발급된 크레딧은 ThinQ 안에서 새 LG 가전을 구매하거나 교체 예약을 진행할 때 사용할 수 있습니다."}
         </p>
       </div>
 
       <div className="mt-4 space-y-3">
-        <ReviewRow done icon={<Service3DIcon type="check" className="h-9 w-9" />} title="ThinQ 크레딧 지갑에 저장" description="발급 금액은 내 크레딧 내역에 자동으로 반영됩니다." />
-        <ReviewRow done icon={<Service3DIcon type="credit" className="h-9 w-9" />} title="LG 제품 구매 시 사용" description="결제 단계에서 보유 크레딧을 선택하면 구매 금액에서 차감됩니다." />
-        <ReviewRow done icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="사용 기한 알림" description="크레딧 만료 전 ThinQ 알림으로 다시 안내받을 수 있습니다." />
+        {isPurchaseBenefit ? (
+          <>
+            <ReviewRow done icon={<Service3DIcon type="check" className="h-9 w-9" />} title="AMC 골드 혜택 예약" description="구매한 LG 가전에 맞춰 서비스 등록이 진행됩니다." />
+            <ReviewRow done icon={<Service3DIcon type="credit" className="h-9 w-9" />} title="구매 할인 반영" description="보상 크레딧은 선택한 제품 구매 혜택에 반영됩니다." />
+            <ReviewRow done icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="서비스 일정 알림" description="AMC 등록과 서비스 예정일은 ThinQ 알림으로 안내됩니다." />
+          </>
+        ) : (
+          <>
+            <ReviewRow done icon={<Service3DIcon type="check" className="h-9 w-9" />} title="ThinQ 크레딧 지갑에 저장" description="발급 금액은 내 크레딧 내역에 자동으로 반영됩니다." />
+            <ReviewRow done icon={<Service3DIcon type="credit" className="h-9 w-9" />} title="LG 제품 구매 시 사용" description="결제 단계에서 보유 크레딧을 선택하면 구매 금액에서 차감됩니다." />
+            <ReviewRow done icon={<Service3DIcon type="bell" className="h-9 w-9" />} title="사용 기한 알림" description="크레딧 만료 전 ThinQ 알림으로 다시 안내받을 수 있습니다." />
+          </>
+        )}
       </div>
 
       <div className={`mt-auto grid gap-3 pt-5 ${showMarketButton ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -313,6 +323,23 @@ function CreditIssuedView({
     </>
   );
 }
+
+function applianceLabelFor(applianceType?: string | null) {
+  switch (applianceType) {
+    case "refrigerator":
+      return "냉장고";
+    case "air_conditioner":
+      return "에어컨";
+    case "microwave":
+      return "전자레인지";
+    case "tv":
+      return "TV";
+    case "washing_machine":
+    default:
+      return "세탁기";
+  }
+}
+
 function ReReviewForm({ onBack, onSubmit }: { onBack: () => void; onSubmit: () => void }) {
   const [reason, setReason] = useState("");
 

@@ -133,6 +133,8 @@ const applianceTints: Record<ApplianceId, string> = {
   tv: "from-[#eceaff] to-[#d9d6fb]",
 };
 
+const acknowledgedRewardStorageKey = "swapit-acknowledged-reward-ids";
+
 type HomeTab = "home" | "devices" | "care" | "menu";
 
 type DeviceBenefit = {
@@ -537,6 +539,32 @@ export default function HomePage() {
   const [capturedApplianceImageUrl, setCapturedApplianceImageUrl] = useState("");
   const [marketReturnStep, setMarketReturnStep] = useState<SwapStep | null>(null);
 
+  function getAcknowledgedRewardIds() {
+    try {
+      const rawValue = window.localStorage.getItem(acknowledgedRewardStorageKey);
+      const parsedValue = rawValue ? JSON.parse(rawValue) : [];
+      return Array.isArray(parsedValue) ? parsedValue.filter((id): id is number => typeof id === "number") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function isRewardAcknowledged(requestId?: number | null) {
+    return requestId != null && getAcknowledgedRewardIds().includes(requestId);
+  }
+
+  function markRewardAcknowledged(request?: SwapRequest | null) {
+    if (!request?.id) return;
+
+    const ids = getAcknowledgedRewardIds();
+    if (ids.includes(request.id)) return;
+    window.localStorage.setItem(acknowledgedRewardStorageKey, JSON.stringify([...ids, request.id]));
+  }
+
+  function isRewardAlreadyHandled(request?: SwapRequest | null) {
+    return Boolean(request && (isRewardAcknowledged(request.id) || request.credit));
+  }
+
   function applyRestoredSwapRequest(restored: SwapRequest) {
     if (isCancelledSwapRequest(restored)) {
       setSwapRequest(null);
@@ -570,6 +598,10 @@ export default function HomePage() {
     setReservationAddress(restored.booking?.address ?? restored.pickupRequest?.address ?? "");
 
     if (pickupStatus === "COMPLETED" || restored.status === "REWARD_READY") {
+      if (isRewardAlreadyHandled(restored)) {
+        setHomeSwapStatus("none");
+        return;
+      }
       setHomeSwapStatus("reviewCompleted");
       return;
     }
@@ -839,7 +871,8 @@ export default function HomePage() {
     onSuccess: (data) => {
       setSwapRequest(data);
       setActiveReservationRequest(data);
-      setHomeSwapStatus("reviewCompleted");
+      markRewardAcknowledged(data);
+      setHomeSwapStatus("none");
       setSwapStep("credit");
     },
   });
@@ -1015,6 +1048,10 @@ export default function HomePage() {
         setReservationAddress(latest.booking?.address ?? latest.pickupRequest?.address ?? reservationAddress);
 
         if (latest.pickupRequest?.status === "COMPLETED" || latest.status === "REWARD_READY") {
+          if (isRewardAlreadyHandled(latest)) {
+            setHomeSwapStatus("none");
+            return;
+          }
           setHomeSwapStatus("reviewCompleted");
           return;
         }
@@ -1266,6 +1303,7 @@ export default function HomePage() {
                   }}
                   onReturnHome={() => setSwapItOpened(false)}
                   onCreditReturnHome={() => {
+                    markRewardAcknowledged(activeReservationRequest ?? swapRequest);
                     setHomeSwapStatus("none");
                     setSwapItOpened(false);
                   }}
@@ -1301,6 +1339,7 @@ export default function HomePage() {
                   }}
                   onOpenReview={() => {
                     setMarketOpened(false);
+                    markRewardAcknowledged(activeReservationRequest ?? swapRequest);
                     setSwapStep("credit");
                     setSwapItOpened(true);
                   }}
@@ -1853,6 +1892,10 @@ function ThinQHomeScreen({
     homeSwapStatus === "reReviewCompleted"
       ? onOpenReview
       : onOpenReservation;
+  const shouldShowSwapStatusCard =
+    homeSwapStatus !== "none" &&
+    homeSwapStatus !== "reviewCompleted" &&
+    homeSwapStatus !== "reReviewCompleted";
   const headerSubtitle =
     activeHomeTab === "devices"
       ? "Devices"
@@ -1943,7 +1986,7 @@ function ThinQHomeScreen({
           </div>
         </section>
 
-        {homeSwapStatus !== "none" ? (
+        {shouldShowSwapStatusCard ? (
           <SwapItStatusCard
             status={homeSwapStatus}
             reservationLabel={reservationLabel}
@@ -2463,18 +2506,17 @@ function SwapItFeatureScreen(props: {
             <ArrowLeft size={18} />
           </button>
           <button
-            className="h-9 rounded-full bg-white/95 px-4 text-xs font-bold text-lgred shadow-sm ring-1 ring-lgred/10"
-            onClick={props.onNextScreen}
-            type="button"
-          >
-            다음 화면
-          </button>
-          <button
             className={`h-9 rounded-full bg-white/95 px-3 text-xs font-bold text-lgred shadow-sm disabled:text-slate-500 ${
               props.step === "tracking" ? "invisible w-9 px-0" : ""
             }`}
             disabled={props.isBusy}
-            onClick={props.step === "intro" ? props.onClose : props.onReturnHome}
+            onClick={
+              props.step === "intro"
+                ? props.onClose
+                : props.step === "credit"
+                  ? props.onCreditReturnHome
+                  : props.onReturnHome
+            }
           >
             {props.step === "intro" ? "닫기" : <Home size={16} />}
           </button>

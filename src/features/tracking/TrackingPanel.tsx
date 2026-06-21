@@ -441,7 +441,6 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
         comment: reviewComment,
       });
       setLiveRequest(updated);
-      onNext();
     } catch (submitError) {
       setReviewError(submitError instanceof Error ? submitError.message : "평점을 등록하지 못했어요.");
     } finally {
@@ -582,7 +581,8 @@ export function TrackingPanel({ swapRequest, onNext, onBack, onHome, onMissing }
 
               <div className={`mt-4 grid gap-3 ${hasSubmittedReview ? "grid-cols-1" : "grid-cols-2"}`}>
                 <button
-                  className="h-12 rounded-2xl border border-slate-200 bg-white text-[13px] font-bold text-slate-700"
+                  className="h-12 rounded-2xl border border-slate-200 bg-white text-[13px] font-bold text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  disabled={!hasSubmittedReview || reviewSubmitting}
                   onClick={onNext}
                   type="button"
                 >
