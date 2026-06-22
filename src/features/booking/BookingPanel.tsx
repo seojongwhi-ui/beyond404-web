@@ -541,7 +541,7 @@ function ScheduleBooking({
     <div>
       <div className="overflow-hidden rounded-3xl bg-slate-50">
         <PickupPreviewMap
-          addressLabel={pickupAddress || "수거 위치를 확인해 주세요."}
+          addressLabel={pickupAddress || "수거 위치를 확인해 주세요"}
           coordinates={previewCoordinates}
           onCoordinateSelect={(coordinates) => void selectScheduleMapLocation(coordinates)}
           onLocate={() => void handleUseCurrentLocation()}
@@ -566,9 +566,7 @@ function ScheduleBooking({
       >
         <Calendar3DIcon className="h-9 w-9 shrink-0" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-bold text-ink">
-            수거 희망 시간 선택
-          </span>
+          <span className="block text-[13px] font-bold text-ink">수거 희망 시간 선택</span>
           <span className="mt-1 block truncate text-xs font-semibold text-slate-500">
             {formatDateLabel(selectedDate)} · {selectedTime}
           </span>
@@ -1209,9 +1207,9 @@ function PickupInteractiveMap({
       ) : (
         <div className="flex h-full w-full items-center justify-center px-6 text-center">
           <div>
-              <p className="text-sm font-black text-ink">Kakao Maps connection is required</p>
+              <p className="text-sm font-black text-ink">Kakao Maps 연결이 필요합니다</p>
             <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                Check NEXT_PUBLIC_KAKAO_MAP_APP_KEY and restart the app.
+                NEXT_PUBLIC_KAKAO_MAP_APP_KEY 값을 확인한 뒤 앱을 다시 실행해 주세요.
             </p>
           </div>
         </div>

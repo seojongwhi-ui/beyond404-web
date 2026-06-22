@@ -691,7 +691,7 @@ function TrackingMap({
 
       </div>
 
-      <div className="grid grid-cols-1 gap-2 border-t border-slate-200 bg-white p-3 text-xs font-bold text-slate-500 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-1 border-t border-slate-200 bg-white p-3 text-[11px] font-bold text-slate-500">
         <MapLegend colorClass="bg-[#2563eb]" label="수거 위치" />
         <MapLegend colorClass="bg-[#dc2626]" label="크루 현재 위치" />
         <MapLegend colorClass="bg-[#16a34a]" label="처리 허브" />
@@ -727,9 +727,9 @@ function InfoCard({
 
 function MapLegend({ colorClass, label }: { colorClass: string; label: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={`h-2.5 w-2.5 rounded-full ${colorClass}`} />
-      {label}
+    <div className="flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap">
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${colorClass}`} />
+      <span className="whitespace-nowrap">{label}</span>
     </div>
   );
 }

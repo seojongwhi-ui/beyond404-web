@@ -6,12 +6,7 @@ import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 
-export type ProductCategoryId =
-  | "washing_machine"
-  | "refrigerator"
-  | "air_conditioner"
-  | "microwave"
-  | "tv";
+export type ProductCategoryId = "washing_machine" | "refrigerator" | "air_conditioner" | "microwave" | "tv";
 
 export type ProductId = string;
 export type ProductGrade = "프리미엄" | "일반/중형" | "보급형";
@@ -62,10 +57,10 @@ export const purchaseProducts: ReplacementProduct[] = [
     sameDayEligible: true,
     imageUrl: "https://www.lge.co.kr/kr/images/washing-machines/md10041839/gallery/large-interior01.jpg",
     summary: "24kg / AI DD / 오브제컬렉션",
-    detail: "대용량 세탁과 AI 세탁 코스를 함께 지원하는 프리미엄 세탁기예요.",
-    recommendedFor: "가족 세탁량이 많고 세탁 시간을 줄이고 싶은 집에 잘 맞아요.",
-    serviceInfo: "수거 예약 후 설치 일정까지 한 번에 이어서 안내해드려요.",
-    highlights: ["AI DD 기반 세탁 코스", "24kg 대용량", "오브제컬렉션 디자인"],
+    detail: "대용량 세탁과 AI 세탁 코스를 지원하는 프리미엄 세탁기입니다.",
+    recommendedFor: "가족 세탁물이 많고 세탁 시간을 줄이고 싶은 집에 잘 맞아요.",
+    serviceInfo: "수거 예약 후 설치 일정까지 한 번에 이어서 안내해 드려요.",
+    highlights: ["AI DD 세탁 코스", "24kg 대용량", "오브제컬렉션 디자인"],
     specs: [
       { label: "용량", value: "24kg" },
       { label: "핵심 기능", value: "AI DD" },
@@ -82,17 +77,17 @@ export const purchaseProducts: ReplacementProduct[] = [
     originalPrice: 1490000,
     sameDayEligible: false,
     imageUrl: "https://www.lge.co.kr/kr/images/washing-machines/md10412832/gallery/medium-interior01.jpg",
-    summary: "21kg / 스팀 / 대용량",
-    detail: "대가족 빨래를 넉넉하게 처리하기 좋은 대용량 세탁기예요.",
-    recommendedFor: "빨래 양이 많고 이불 세탁이 잦은 집에 추천해요.",
-    serviceInfo: "설치 공간과 배수 환경을 예약 단계에서 함께 확인해요.",
-    highlights: ["21kg 대용량", "스팀 기능", "편리한 교체 설치"],
+    summary: "21kg / 트롬 / 대용량",
+    detail: "대가족 빨래를 넉넉하게 처리하기 좋은 대용량 세탁기입니다.",
+    recommendedFor: "빨래 양이 많고 이불 세탁까지 하는 집에 추천해요.",
+    serviceInfo: "설치 공간과 배수 환경은 예약 단계에서 함께 확인해요.",
+    highlights: ["21kg 대용량", "트롬 기능", "프리미엄 교체 설치"],
     specs: [
       { label: "용량", value: "21kg" },
-      { label: "핵심 기능", value: "스팀" },
+      { label: "핵심 기능", value: "트롬" },
       { label: "제품군", value: "TROMM" },
     ],
-    tags: ["21kg", "스팀", "TROMM"],
+    tags: ["21kg", "트롬", "TROMM"],
   },
   {
     id: "washing-machine-basic-10",
@@ -104,7 +99,7 @@ export const purchaseProducts: ReplacementProduct[] = [
     sameDayEligible: true,
     imageUrl: "https://www.lge.co.kr/kr/images/washing-machines/md10708830/gallery/medium-interior01.jpg",
     summary: "10kg / 통돌이 / 실속형",
-    detail: "가볍게 교체하기 좋은 실속형 세탁기예요.",
+    detail: "가볍게 교체하기 좋은 실속형 세탁기입니다.",
     recommendedFor: "1~2인 가구나 보조 세탁기가 필요한 경우에 잘 맞아요.",
     serviceInfo: "빠른 수거 요청과 연동해 간편하게 진행할 수 있어요.",
     highlights: ["실속형 가격", "10kg 용량", "간편한 교체"],
@@ -126,8 +121,8 @@ export const purchaseProducts: ReplacementProduct[] = [
     imageUrl: "https://www.lge.co.kr/kr/images/refrigerators/md10635830/gallery/medium-interior01.jpg",
     summary: "832L / 양문형 / 오브제컬렉션",
     detail: "대용량 수납과 프리미엄 디자인을 동시에 원하는 경우에 잘 맞아요.",
-    recommendedFor: "대가족이나 냉장 공간이 넉넉하게 필요한 집에 추천해요.",
-    serviceInfo: "설치 공간과 문 열림 동선을 예약 단계에서 함께 확인해요.",
+    recommendedFor: "대가족이거나 냉장 공간이 넉넉하게 필요한 집에 추천해요.",
+    serviceInfo: "설치 공간과 문 열림 동선은 예약 단계에서 함께 확인해요.",
     highlights: ["832L 대용량", "양문형", "오브제컬렉션"],
     specs: [
       { label: "용량", value: "832L" },
@@ -146,10 +141,10 @@ export const purchaseProducts: ReplacementProduct[] = [
     sameDayEligible: false,
     imageUrl: "https://www.lge.co.kr/kr/images/refrigerators/md10555924/gallery/medium-interior01.jpg",
     summary: "504L / Fit & Max / 슬림형",
-    detail: "공간 활용도를 높이면서도 깔끔한 주방 연출이 가능한 냉장고예요.",
+    detail: "공간 활용을 높이면서도 깔끔한 주방 연출이 가능한 냉장고입니다.",
     recommendedFor: "수납과 인테리어를 함께 고려하는 집에 잘 맞아요.",
     serviceInfo: "주방 진입 동선과 냉장고 문 열림 공간을 함께 체크해요.",
-    highlights: ["Fit & Max 설계", "504L 용량", "슬림한 설치감"],
+    highlights: ["Fit & Max 설계", "504L 용량", "슬림 설치감"],
     specs: [
       { label: "용량", value: "504L" },
       { label: "형태", value: "슬림형" },
@@ -167,7 +162,7 @@ export const purchaseProducts: ReplacementProduct[] = [
     sameDayEligible: false,
     imageUrl: "https://www.lge.co.kr/kr/images/refrigerators/md09091857/gallery/medium-interior01.jpg",
     summary: "300L / 일반형 / 1등급",
-    detail: "가정에서 부담 없이 쓰기 좋은 균형형 냉장고예요.",
+    detail: "가정에서 부담 없이 쓰기 좋은 균형형 냉장고입니다.",
     recommendedFor: "2~3인 가구의 기본 냉장고 교체용으로 추천해요.",
     serviceInfo: "기본 설치 환경만 맞으면 빠르게 교체가 가능해요.",
     highlights: ["300L 용량", "기본형 구조", "에너지 효율"],
@@ -188,9 +183,9 @@ export const purchaseProducts: ReplacementProduct[] = [
     sameDayEligible: false,
     imageUrl: "https://www.lge.co.kr/kr/images/air-conditioners/md10731831/gallery/medium-interior01.jpg",
     summary: "22㎡ / 1등급 / 벽걸이형",
-    detail: "기본 냉방 성능과 에너지 효율을 고르게 갖춘 제품이에요.",
-    recommendedFor: "작은 방이나 서브 공간에 교체 설치할 때 적합해요.",
-    serviceInfo: "실외기 위치와 설치 동선을 예약 단계에서 함께 조율해요.",
+    detail: "기본 냉방 성능과 에너지 효율을 고르게 갖춘 제품입니다.",
+    recommendedFor: "작은 방이나 서브 공간 교체 설치에 적합해요.",
+    serviceInfo: "실외기 위치와 설치 동선은 예약 단계에서 함께 조율해요.",
     highlights: ["22㎡ 냉방", "1등급", "벽걸이형"],
     specs: [
       { label: "냉방 면적", value: "22㎡" },
@@ -209,10 +204,10 @@ export const purchaseProducts: ReplacementProduct[] = [
     sameDayEligible: false,
     imageUrl: "https://www.lge.co.kr/kr/images/air-conditioners/md10248830/gallery/medium-interior01.jpg",
     summary: "22㎡ / 사계절 / 프리미엄",
-    detail: "냉방과 공기 관리 기능을 함께 원하는 경우에 적합한 모델이에요.",
+    detail: "냉방과 공기 관리 기능을 함께 원하는 경우에 적합한 모델입니다.",
     recommendedFor: "사계절 활용도를 높이고 싶은 집에 추천해요.",
     serviceInfo: "배관 길이와 벽 타공 조건을 함께 확인해요.",
-    highlights: ["사계절 운전", "22㎡ 대응", "프리미엄 라인"],
+    highlights: ["사계절 운전", "22㎡ 대형", "프리미엄 라인"],
     specs: [
       { label: "냉방 면적", value: "22㎡" },
       { label: "제품군", value: "사계절" },
@@ -232,8 +227,8 @@ export const purchaseProducts: ReplacementProduct[] = [
     summary: "65.9㎡ / 타워형 / 거실형",
     detail: "넓은 거실 공간을 빠르게 냉방하는 프리미엄 타워형 에어컨이에요.",
     recommendedFor: "거실 메인 냉방기를 교체하려는 집에 잘 맞아요.",
-    serviceInfo: "설치 공간과 이동 동선이 넓은지 사전 확인이 필요해요.",
-    highlights: ["거실형 타워", "65.9㎡ 냉방", "프리미엄 디자인"],
+    serviceInfo: "설치 공간과 이동 동선을 넉넉히 사전 확인해야 해요.",
+    highlights: ["거실형 대형", "65.9㎡ 냉방", "프리미엄 디자인"],
     specs: [
       { label: "냉방 면적", value: "65.9㎡" },
       { label: "형태", value: "타워형" },
@@ -251,7 +246,7 @@ export const purchaseProducts: ReplacementProduct[] = [
     sameDayEligible: true,
     imageUrl: "https://www.lge.co.kr/kr/images/microwaves-and-ovens/md10739828/gallery/medium-interior01.jpg",
     summary: "25L / 기본형 / 심플 디자인",
-    detail: "간편한 조리와 재가열에 집중한 실속형 전자레인지예요.",
+    detail: "간편한 조리와 해동에 집중한 실속형 전자레인지예요.",
     recommendedFor: "1~2인 가구나 보조 조리 가전이 필요한 경우에 잘 맞아요.",
     serviceInfo: "소형 가전은 빠른 수거 요청과 함께 진행하기 좋아요.",
     highlights: ["25L 용량", "실속형 가격", "간편 조리"],
@@ -271,38 +266,38 @@ export const purchaseProducts: ReplacementProduct[] = [
     originalPrice: 490000,
     sameDayEligible: true,
     imageUrl: "https://www.lge.co.kr/kr/images/microwaves-and-ovens/md10101827/gallery/medium-interior02.jpg",
-    summary: "39L / 광파오븐 / 다기능",
-    detail: "전자레인지와 오븐 기능을 함께 쓰고 싶은 사용자에게 مناسب해요.",
+    summary: "39L / 광파오븐 / 스팀 조리",
+    detail: "전자레인지와 오븐 기능을 함께 쓰고 싶은 사용자에게 적합해요.",
     recommendedFor: "조리 기능을 조금 더 다양하게 쓰고 싶은 집에 잘 맞아요.",
     serviceInfo: "소형 가전으로 비교적 설치 부담이 적어요.",
-    highlights: ["39L 용량", "광파오븐", "다기능 조리"],
+    highlights: ["39L 용량", "광파오븐", "스팀 조리"],
     specs: [
       { label: "용량", value: "39L" },
       { label: "형태", value: "광파오븐" },
       { label: "등급", value: "일반/중형" },
     ],
-    tags: ["39L", "광파오븐", "다기능"],
+    tags: ["39L", "광파오븐", "스팀"],
   },
   {
     id: "microwave-objet-gwangpa-32l",
     categoryId: "microwave",
-    category: "????????",
-    name: "LG ??? ?????? ???? 32L",
+    category: "전자레인지",
+    name: "LG 오브제컬렉션 광파오븐 32L",
     grade: "일반/중형",
     originalPrice: 1055000,
     sameDayEligible: false,
     imageUrl: "https://www.lge.co.kr/kr/images/microwaves-and-ovens/md10200826/gallery/medium-interior01.jpg",
-    summary: "32L / ???? / ??????",
-    detail: "??? ????? ??? ?? ?? ?? ??? ?? ?????? ???????.",
-    recommendedFor: "?? ????? ?? ???? ?? ??? ?? ??? ? ???.",
-    serviceInfo: "?? ??? ? ?? ?? ??? ???? ??? ???.",
-    highlights: ["32L ??", "????", "??????"],
+    summary: "32L / 광파오븐 / 오브제컬렉션",
+    detail: "주방 인테리어와 조리 기능을 함께 고려한 광파오븐입니다.",
+    recommendedFor: "디자인과 조리 기능을 모두 챙기고 싶은 집에 잘 맞아요.",
+    serviceInfo: "주방 가구와 배치 공간을 함께 확인해 주세요.",
+    highlights: ["32L 용량", "광파오븐", "오브제컬렉션"],
     specs: [
-      { label: "??", value: "32L" },
-      { label: "??", value: "????" },
-      { label: "???", value: "??????" },
+      { label: "용량", value: "32L" },
+      { label: "형태", value: "광파오븐" },
+      { label: "제품군", value: "오브제컬렉션" },
     ],
-    tags: ["32L", "????", "??????"],
+    tags: ["32L", "광파오븐", "오브제컬렉션"],
   },
   {
     id: "tv-oled-48",
@@ -316,8 +311,8 @@ export const purchaseProducts: ReplacementProduct[] = [
     summary: "48인치 / OLED evo / 스탠드형",
     detail: "프리미엄 화질과 세련된 디자인이 강점인 TV예요.",
     recommendedFor: "거실 메인 TV 교체를 생각하는 집에 잘 어울려요.",
-    serviceInfo: "TV 수거와 신제품 배송 일정을 예약 단계에서 함께 확인해요.",
-    highlights: ["OLED evo", "48인치", "프리미엄 화질"],
+    serviceInfo: "TV 수거와 설치 배송 일정을 예약 단계에서 함께 확인해요.",
+    highlights: ["OLED evo", "48인치", "프리미엄 화면"],
     specs: [
       { label: "크기", value: "48인치" },
       { label: "패널", value: "OLED evo" },
@@ -345,28 +340,28 @@ export const purchaseProducts: ReplacementProduct[] = [
       { label: "형태", value: "스탠드형" },
     ],
     tags: ["107cm", "LED", "실속형"],
-  },  {
+  },
+  {
     id: "tv-led-80-stand",
     categoryId: "tv",
     category: "TV",
-    name: "LG ?? LED TV (????) 80cm",
+    name: "LG LED TV 80cm",
     grade: "보급형",
     originalPrice: 450000,
     sameDayEligible: true,
     imageUrl: "https://www.lge.co.kr/kr/images/tvs/md10791858/gallery/medium-interior01.jpg",
-    summary: "80cm / LED / ????",
-    detail: "???? ?? ??? ?? ?? ??? LED TV??.",
-    recommendedFor: "???? ???? ?? ??? TV? ?? ??? ? ???.",
-    serviceInfo: "?? ??? TV ?? ??? ?? ??? ??? ???.",
-    highlights: ["80cm ??", "LED ??", "????"],
+    summary: "80cm / LED / 스탠드형",
+    detail: "작은 방이나 보조 공간에 두기 좋은 LED TV입니다.",
+    recommendedFor: "컴팩트한 TV를 부담 없이 교체하고 싶은 집에 잘 맞아요.",
+    serviceInfo: "소형 TV라 이동과 설치 부담이 적습니다.",
+    highlights: ["80cm 화면", "LED 패널", "스탠드형"],
     specs: [
-      { label: "??", value: "80cm" },
-      { label: "??", value: "LED" },
-      { label: "??", value: "????" },
+      { label: "크기", value: "80cm" },
+      { label: "패널", value: "LED" },
+      { label: "형태", value: "스탠드형" },
     ],
-    tags: ["80cm", "LED", "????"],
+    tags: ["80cm", "LED", "스탠드형"],
   },
-
 ];
 
 export function getDefaultProductIdForCategory(categoryId: ProductCategoryId): ProductId | null {
@@ -416,12 +411,8 @@ export function PurchasePanel({
   const selectedProduct = purchaseProducts.find((product) => product.id === selectedProductId) ?? null;
   const [detailProduct, setDetailProduct] = useState<ReplacementProduct | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<ProductCategoryId>(preferredCategoryId);
-  const selectedPurchaseBenefit = selectedProduct
-    ? calculatePurchaseBenefit(estimatedCredit, selectedProduct.originalPrice)
-    : 0;
-  const selectedFinalPrice = selectedProduct
-    ? Math.max(selectedProduct.originalPrice - selectedPurchaseBenefit, 0)
-    : 0;
+  const selectedPurchaseBenefit = selectedProduct ? calculatePurchaseBenefit(estimatedCredit, selectedProduct.originalPrice) : 0;
+  const selectedFinalPrice = selectedProduct ? Math.max(selectedProduct.originalPrice - selectedPurchaseBenefit, 0) : 0;
 
   const categoryOptions = Object.entries(categoryLabels).map(([id, label]) => ({
     id: id as ProductCategoryId,
@@ -457,7 +448,7 @@ export function PurchasePanel({
       </div>
 
       <div className="mt-4">
-        <h3 className="text-[13px] font-bold text-ink">가전제품 카테고리</h3>
+        <h3 className="text-[13px] font-bold text-ink">교체제품 카테고리</h3>
         <div className="-mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {categoryOptions.map((category) => {
             const active = selectedCategoryId === category.id;
@@ -719,11 +710,7 @@ function ProductDetailSheet({
           </div>
         </div>
         <div className="shrink-0 border-t border-slate-100 bg-white px-4 pb-4 pt-3 shadow-[0_-12px_24px_rgba(15,23,42,.08)]">
-          <button
-            className="h-12 w-full rounded-2xl bg-lgred text-[13px] font-bold text-white"
-            onClick={onOrder}
-            type="button"
-          >
+          <button className="h-12 w-full rounded-2xl bg-lgred text-[13px] font-bold text-white" onClick={onOrder} type="button">
             주문하기
           </button>
         </div>

@@ -47,11 +47,11 @@ type RecognizedAppliance = {
   brand: string;
   modelName: string;
   capacity?: string;
-  size?: string; // 소형 | 중형 | 대형
+  size?: string; // small | medium | large
   estimatedAge: string;
   exteriorCondition: string;
   confidence: number;
-  weightKg?: number | null; // API 또는 DB에서 얻은 실제 무게
+  weightKg?: number | null; // actual weight from API or DB
 };
 
 const targetDescriptions: Record<
@@ -59,64 +59,64 @@ const targetDescriptions: Record<
   { title: string; description: string; demoLabel: string }
 > = {
   exterior: {
-    title: "가전 외관 전체가 보이도록 촬영해 주세요",
-    description: "정면 또는 사선에서 주요 파손 여부가 보이는 각도로 맞춰주세요.",
-    demoLabel: "외관 촬영",
+    title: "\uAC00\uC804 \uC678\uAD00 \uC804\uCCB4\uAC00 \uBCF4\uC774\uB3C4\uB85D \uCD2C\uC601\uD574 \uC8FC\uC138\uC694",
+    description: "\uC815\uBA74 \uB610\uB294 \uC0AC\uC120\uC5D0\uC11C \uC8FC\uC694 \uD30C\uC190 \uC5EC\uBD80\uAC00 \uBCF4\uC774\uB294 \uAC01\uB3C4\uB85C \uB9DE\uCDB0\uC8FC\uC138\uC694.",
+    demoLabel: "\uC678\uAD00 \uCD2C\uC601",
   },
   label: {
-    title: "뒷 라벨의 모델명과 제조 정보가 보이도록 촬영해 주세요",
-    description: "시리얼/모델명이 흐리지 않도록 가까이 맞춰 촬영해 주세요.",
-    demoLabel: "뒷 라벨 촬영",
+    title: "\uB4B7 \uB77C\uBCA8\uC758 \uBAA8\uB378\uBA85\uACFC \uC81C\uC870 \uC815\uBCF4\uAC00 \uBCF4\uC774\uB3C4\uB85D \uCD2C\uC601\uD574 \uC8FC\uC138\uC694",
+    description: "\uC2DC\uB9AC\uC5BC/\uBAA8\uB378\uBA85\uC774 \uD750\uB9AC\uC9C0 \uC54A\uB3C4\uB85D \uAC00\uAE4C\uC774 \uB9DE\uCDB0 \uCD2C\uC601\uD574 \uC8FC\uC138\uC694.",
+    demoLabel: "\uB4B7 \uB77C\uBCA8 \uCD2C\uC601",
   },
 };
 
 const recognitionByAppliance: Record<ApplianceId, RecognizedAppliance> = {
   washing_machine: {
-    applianceType: "세탁기",
+    applianceType: "\uC138\uD0C1\uAE30",
     brand: "unknown",
     modelName: "unknown",
-    estimatedAge: "3-5년",
-    exteriorCondition: "생활 스크래치 경미",
+    estimatedAge: "3-5\uB144",
+    exteriorCondition: "\uC0DD\uD65C \uC2A4\uD06C\uB798\uCE58 \uACBD\uBBF8",
     confidence: 88,
   },
   refrigerator: {
-    applianceType: "냉장고",
+    applianceType: "\uB0C9\uC7A5\uACE0",
     brand: "unknown",
     modelName: "unknown",
-    estimatedAge: "4-6년",
-    exteriorCondition: "도어 모서리 사용감",
+    estimatedAge: "4-6\uB144",
+    exteriorCondition: "\uBB38\uCABD \uC2A4\uD06C\uB798\uCE58 \uC18C\uB7C9",
     confidence: 84,
   },
   air_conditioner: {
-    applianceType: "에어컨",
+    applianceType: "\uC5D0\uC5B4\uCEE8",
     brand: "unknown",
     modelName: "unknown",
-    estimatedAge: "2-4년",
-    exteriorCondition: "실내기 전면 양호",
+    estimatedAge: "2-4\uB144",
+    exteriorCondition: "\uC2E4\uB0B4\uAE30 \uD45C\uBA74 \uC591\uD638",
     confidence: 86,
   },
   microwave: {
-    applianceType: "전자레인지",
+    applianceType: "\uC804\uC790\uB808\uC778\uC9C0",
     brand: "unknown",
     modelName: "unknown",
-    estimatedAge: "5년 이상",
-    exteriorCondition: "생활 오염 있음",
+    estimatedAge: "5\uB144 \uC774\uC0C1",
+    exteriorCondition: "\uC0DD\uD65C \uC624\uC5FC \uD754\uC801",
     confidence: 79,
   },
   tv: {
     applianceType: "TV",
     brand: "unknown",
     modelName: "unknown",
-    estimatedAge: "2-3년",
-    exteriorCondition: "패널 외관 양호",
+    estimatedAge: "2-3\uB144",
+    exteriorCondition: "\uD654\uBA74 \uC678\uAD00 \uC591\uD638",
     confidence: 90,
   },
   air_purifier: {
-    applianceType: "공기청정기",
+    applianceType: "\uACF5\uAE30\uCCAD\uC815\uAE30",
     brand: "unknown",
     modelName: "unknown",
-    estimatedAge: "2-4년",
-    exteriorCondition: "필터 커버 양호",
+    estimatedAge: "2-4\uB144",
+    exteriorCondition: "\uD544\uD130 \uC8FC\uBCC0 \uC591\uD638",
     confidence: 82,
   },
 };
@@ -137,14 +137,13 @@ const METAL_RATIOS: Record<ApplianceId, { steel: number; aluminum: number; coppe
 };
 
 const APPLIANCE_WEIGHTS: Record<ApplianceId, Record<string, number>> = {
-  washing_machine: { "소형": 45, "중형": 62, "대형": 78 },
-  refrigerator: { "소형": 55, "중형": 82, "대형": 115 },
-  air_conditioner: { "소형": 18, "중형": 32, "대형": 48 },
-  microwave: { "소형": 10, "중형": 13, "대형": 17 },
-  tv: { "소형": 9, "중형": 16, "대형": 25 },
-  air_purifier: { "소형": 6, "중형": 9, "대형": 13 },
+  washing_machine: { "\uC18C\uD615": 45, "\uC911\uD615": 62, "\uB300\uD615": 78 },
+  refrigerator: { "\uC18C\uD615": 55, "\uC911\uD615": 82, "\uB300\uD615": 115 },
+  air_conditioner: { "\uC18C\uD615": 18, "\uC911\uD615": 32, "\uB300\uD615": 48 },
+  microwave: { "\uC18C\uD615": 10, "\uC911\uD615": 13, "\uB300\uD615": 17 },
+  tv: { "\uC18C\uD615": 9, "\uC911\uD615": 16, "\uB300\uD615": 25 },
+  air_purifier: { "\uC18C\uD615": 6, "\uC911\uD615": 9, "\uB300\uD615": 13 },
 };
-
 const MODEL_WEIGHT_DB: Record<string, number> = {};
 
 const CREDIT_RATIO_MATRIX: Record<string, number[]> = {
@@ -169,18 +168,18 @@ function getWeightForCalc(
   }
 
   const key = normalizeApplianceId(applianceType);
-  const grade = size && APPLIANCE_WEIGHTS[key]?.[size] ? size : "중형";
+  const grade = size && APPLIANCE_WEIGHTS[key]?.[size] ? size : "\uC911\uD615";
   return { weight: APPLIANCE_WEIGHTS[key]?.[grade] ?? 40, fromDB: false };
 }
 
 function normalizeApplianceId(applianceType: string): ApplianceId {
-  if (applianceType === "냉장고") return "refrigerator";
-  if (applianceType === "에어컨") return "air_conditioner";
-  if (applianceType === "전자레인지") return "microwave";
+  if (applianceType === "\uB0C9\uC7A5\uACE0") return "refrigerator";
+  if (applianceType === "\uC5D0\uC5B4\uCEE8") return "air_conditioner";
+  if (applianceType === "\uC804\uC790\uB808\uC778\uC9C0") return "microwave";
   if (applianceType === "TV") return "tv";
+  if (applianceType === "\uACF5\uAE30\uCCAD\uC815\uAE30") return "air_purifier";
   return "washing_machine";
 }
-
 function calculateScrapValue(applianceType: string, weight: number) {
   const ratios = METAL_RATIOS[normalizeApplianceId(applianceType)];
   return Math.round(
@@ -223,10 +222,10 @@ function calculateFinalCredit(
 function releaseYearToAge(releaseYear: number) {
   const currentYear = new Date().getFullYear();
   const age = Math.max(currentYear - releaseYear, 0);
-  if (age <= 1) return "1년 이하";
-  if (age <= 3) return "1-3년";
-  if (age <= 5) return "3-5년";
-  return "5년 이상";
+  if (age <= 1) return "1\uB144 \uC774\uD558";
+  if (age <= 3) return "1-3\uB144";
+  if (age <= 5) return "3-5\uB144";
+  return "5\uB144 \uC774\uC0C1";
 }
 
 async function postVisionApi<T>(path: string, imageData: string): Promise<T> {
@@ -358,7 +357,7 @@ export function CapturePanel({
     setRecognizedInfo(recognitionByAppliance[applianceId]);
   }, [applianceId]);
 
-  // 전면 VLM 분석: phase 전환은 고정 타이머로 보장, API는 백그라운드에서 실행
+  // Keep the capture flow moving even if the preview analysis is still running.
   useEffect(() => {
     if (phase !== "recognizing") return;
 
@@ -369,12 +368,12 @@ export function CapturePanel({
 
     let live = true;
 
-    // phase 전환은 API와 무관하게 2.5초 후 반드시 실행
+    // Move to label capture after a short preview delay.
     const transitionTimer = window.setTimeout(() => {
       if (live) setPhase("sticker-camera");
     }, 2500);
 
-    // API는 백그라운드에서 실행 — 완료되면 데이터 업데이트
+    // Update recognition data when the background analysis returns.
     callAnalyzeApi(capturedImageData)
       .then((result) => { if (live) setRecognizedInfo(result); })
       .catch(() => {});
@@ -406,10 +405,30 @@ export function CapturePanel({
   }, [loading, phase, target]);
 
   useEffect(() => {
+    if (loading || (phase !== "camera" && phase !== "sticker-camera")) return undefined;
+
+    const retryCamera = () => {
+      if (document.visibilityState !== "visible") return;
+      if (cameraReady || cameraStartPromiseRef.current) return;
+      void startCamera();
+    };
+
+    window.addEventListener("focus", retryCamera);
+    window.addEventListener("pageshow", retryCamera);
+    document.addEventListener("visibilitychange", retryCamera);
+
+    return () => {
+      window.removeEventListener("focus", retryCamera);
+      window.removeEventListener("pageshow", retryCamera);
+      document.removeEventListener("visibilitychange", retryCamera);
+    };
+  }, [cameraReady, loading, phase]);
+
+  useEffect(() => {
     if (phase !== "sticker-recognizing") return;
     if (!stickerImageData) { setPhase("review"); return; }
 
-    // effect 시작 시점의 인식 정보 스냅샷 (stale closure 방지)
+    // Snapshot current recognition data to avoid stale updates.
     const prevModelName = recognizedInfo.modelName;
     const prevBrand = recognizedInfo.brand;
     const prevEstimatedAge = recognizedInfo.estimatedAge;
@@ -427,7 +446,7 @@ export function CapturePanel({
       try {
         let nextInfo = recognizedInfo;
 
-        // 1단계: 스티커 OCR → 브랜드 + 모델명 텍스트 추출
+        // Step 1: read brand and model text from the label image.
         let labelResult: { brand?: string; modelName?: string } = {};
 
         try {
@@ -443,7 +462,7 @@ export function CapturePanel({
         const mergedBrand = knownText(labelResult.brand) || knownText(prevBrand);
 
         if (mergedModelName) {
-          // 2단계: 모델명으로 스펙 조회
+          // Step 2: look up specs by model name.
           try {
             const specs = await callLookupSpecsApi(mergedModelName);
             if (isStale()) return;
@@ -457,11 +476,11 @@ export function CapturePanel({
               estimatedAge: specs.releaseYear
                 ? releaseYearToAge(specs.releaseYear)
                 : prevEstimatedAge,
-              // API가 무게를 알고 있으면 저장 (스크랩 계산 정확도 향상)
+              // Store weight from API if available for more accurate credit calculation.
               weightKg: specs.weight_kg ?? nextInfo.weightKg,
             };
           } catch {
-            // 스펙 조회 실패 → OCR 결과만 반영
+            // Keep OCR result even if spec lookup fails.
             nextInfo = {
               ...nextInfo,
               brand: mergedBrand || nextInfo.brand,
@@ -469,7 +488,7 @@ export function CapturePanel({
             };
           }
         } else {
-          // 모델명 없음 → 브랜드만 보완
+          // If no model name was found, keep any recognized brand.
           nextInfo = {
             ...nextInfo,
             brand: mergedBrand || nextInfo.brand,
@@ -493,13 +512,13 @@ export function CapturePanel({
             if (isStale()) return;
             nextInfo = mergeKnownRecognizedInfo(nextInfo, previewResult);
           } catch {
-            // 서버 미리 분석 실패 시에도 OCR/스펙 조회 결과는 유지합니다.
+            // Keep OCR/spec results even if server preview analysis fails.
           }
         }
 
         setRecognizedInfo(nextInfo);
       } catch {
-        // OCR 완전 실패 → 기존 정보 유지
+        // On OCR failure, preserve the previous values.
       } finally {
         window.clearTimeout(fallbackTimer);
         if (!isStale()) setPhase("review");
@@ -587,10 +606,10 @@ export function CapturePanel({
 
   function getCameraUnavailableMessage() {
     if (typeof window !== "undefined" && !window.isSecureContext) {
-      return "현재 주소가 보안 주소가 아니라 카메라가 차단됐어요. PC에서는 localhost, 휴대폰에서는 HTTPS 주소로 접속해주세요.";
+      return "현재 주소가 보안 주소가 아니라 카메라가 차단됐어요. PC에서는 localhost, 휴대폰에서는 HTTPS 주소로 접속해 주세요.";
     }
 
-    return "이 브라우저에서는 실시간 카메라를 사용할 수 없어요. Chrome 또는 Safari에서 다시 열어주세요.";
+    return "이 브라우저에서는 실시간 카메라를 사용할 수 없어요. Chrome 또는 Safari에서 다시 열어 주세요.";
   }
 
   function getCameraErrorMessage(error: unknown) {
@@ -605,28 +624,41 @@ export function CapturePanel({
     }
 
     if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-      return "사용 가능한 카메라를 찾지 못했어요. 카메라가 있는 기기에서 다시 시도해주세요.";
+      return "사용 가능한 카메라를 찾지 못했어요. 카메라가 있는 기기에서 다시 시도해 주세요.";
     }
 
     if (name === "NotReadableError" || name === "TrackStartError") {
-      return "다른 앱이나 브라우저 탭이 카메라를 사용 중일 수 있어요. 카메라를 닫고 다시 시도해주세요.";
+      return "다른 앱이나 브라우저 탭이 카메라를 사용 중일 수 있어요. 카메라를 닫고 다시 시도해 주세요.";
     }
 
     if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
-      return "현재 기기에서 요청한 카메라 설정을 사용할 수 없어요. 다시 시도해주세요.";
+      return "현재 기기에서 요청한 카메라 설정을 사용할 수 없어요. 다시 시도해 주세요.";
     }
 
-    return "카메라를 시작하지 못했어요. 브라우저 권한과 접속 주소를 확인해주세요.";
+    return "카메라를 시작하지 못했어요. 브라우저 권한과 접속 주소를 확인해 주세요.";
   }
 
   async function attachCameraStream(stream: MediaStream) {
     if (!videoRef.current) return;
 
-    videoRef.current.srcObject = stream;
-    videoRef.current.muted = true;
-    videoRef.current.playsInline = true;
-    await videoRef.current.play();
+    const video = videoRef.current;
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    await video.play();
+
+    if (!video.videoWidth || !video.videoHeight) {
+      await new Promise<void>((resolve) => {
+        const timer = window.setTimeout(resolve, 1200);
+        video.onloadedmetadata = () => {
+          window.clearTimeout(timer);
+          resolve();
+        };
+      });
+    }
+
     setCameraReady(true);
+    setCameraMessage("");
   }
 
   async function openCamera(nextTarget: CaptureTarget, nextPhase: Extract<CapturePhase, "camera" | "sticker-camera">) {
@@ -675,6 +707,7 @@ export function CapturePanel({
     try {
       await startPromise;
     } catch (error) {
+      stopCamera();
       setCameraReady(false);
       setCameraMessage(getCameraErrorMessage(error));
     } finally {
@@ -717,24 +750,24 @@ export function CapturePanel({
   function handleCapture() {
     const video = videoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight) {
-      setCameraMessage("카메라 화면이 준비되면 다시 촬영해 주세요.");
+        setCameraMessage("사진 캡처 중 문제가 발생했습니다. 카메라를 다시 실행한 뒤 시도해 주세요.");
       return;
     }
 
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
     if (!context) {
-      setCameraMessage("촬영 이미지를 생성하지 못했습니다.");
+      setCameraMessage("카메라 화면이 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.");
       return;
     }
 
     const frame = frameRef.current;
     if (frame) {
-      // 녹색 가이드 박스 영역만 크롭
+      // Crop only the guide frame area.
       const videoRect = video.getBoundingClientRect();
       const frameRect = frame.getBoundingClientRect();
 
-      // CSS 픽셀 → 실제 비디오 픽셀 변환 비율
+      // Convert CSS pixels to actual video pixels.
       const scaleX = video.videoWidth / videoRect.width;
       const scaleY = video.videoHeight / videoRect.height;
 
@@ -747,7 +780,7 @@ export function CapturePanel({
       canvas.height = Math.round(sh);
       context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     } else {
-      // 가이드 박스 없는 경우(스티커 촬영 등) 전체 프레임
+      // If there is no guide frame, capture the full frame.
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -848,7 +881,9 @@ export function CapturePanel({
         <div className="absolute inset-0">
           <video
             ref={videoRef}
-            className={`h-full w-full object-cover [backdrop-filter:none] [filter:none] ${cameraReady ? "opacity-100" : "opacity-0"}`}
+            className={`pointer-events-none h-full w-full select-none object-cover [backdrop-filter:none] [filter:none] ${
+              cameraReady ? "opacity-100" : "opacity-0"
+            }`}
             autoPlay
             muted
             playsInline
@@ -858,41 +893,35 @@ export function CapturePanel({
           <div className="pointer-events-none absolute inset-0 bg-black/15" />
         </div>
 
-        <div className="relative z-20 flex items-center justify-between px-6 pt-5">
-          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white/85">
-            2 / 2
-          </span>
-          <button
-            className="text-sm font-semibold text-white/70"
-            onClick={() => setPhase("review")}
-            type="button"
-          >
-            건너뛰기
+        <div className="relative z-20 flex items-center justify-between px-6 pt-[max(22px,env(safe-area-inset-top))]">
+          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white/85">2 / 2</span>
+          <button className="text-sm font-semibold text-white/70" onClick={() => setPhase("review")} type="button">
+            {"\uAC74\uB108\uB6F0\uAE30"}
           </button>
         </div>
 
-        <div className="relative z-10 flex h-[calc(100%-150px)] flex-col items-center justify-center gap-4 px-6">
-          <p className="text-center text-base font-bold text-white">모델 라벨 스티커를 찍어주세요</p>
+        <div className="absolute inset-x-0 z-10 flex flex-col items-center justify-center gap-4 px-6" style={{ top: "max(86px,calc(env(safe-area-inset-top) + 72px))", bottom: "max(132px,calc(env(safe-area-inset-bottom) + 112px))" }}>
+          <p className="text-center text-base font-bold text-white">{"\uBAA8\uB378 \uB77C\uBCA8 \uC2A4\uD2F0\uCEE4\uB97C \uCC0D\uC5B4\uC8FC\uC138\uC694"}</p>
           <p className="rounded-full bg-black/55 px-4 py-2 text-[11px] font-semibold text-white/90">
-            글씨가 잘 보이도록 가까이 대주세요
+            {"\uAE00\uC528\uAC00 \uC798 \uBCF4\uC774\uB3C4\uB85D \uAC00\uAE4C\uC774 \uB300\uC8FC\uC138\uC694"}
           </p>
           <div
             ref={frameRef}
-            className="rounded-2xl border-2 border-dashed border-white/65"
+            className="w-full max-w-[290px] rounded-2xl border-2 border-dashed border-white/65"
             style={getGuideFrameStyle(applianceId, "label")}
           />
           <p className="text-center text-[11px] font-semibold leading-5 text-white/55">
-            후면·측면·제품 내부 어디든 라벨이 있는 곳을 찍어주세요
+            {"\uD6C4\uBA74, \uCE21\uBA74, \uC81C\uD488 \uB0B4\uBD80 \uC5B4\uB514\uB4E0 \uB77C\uBCA8\uC774 \uC788\uB294 \uACF3\uC744 \uCC0D\uC5B4\uC8FC\uC138\uC694"}
           </p>
         </div>
 
         {cameraMessage ? (
-          <div className="absolute left-6 right-6 top-[92px] z-30 rounded-2xl bg-black/55 px-4 py-3 text-center text-xs font-bold leading-5 text-white/85">
+          <div className="absolute left-6 right-6 top-[max(92px,calc(env(safe-area-inset-top)+68px))] z-30 rounded-2xl bg-black/55 px-4 py-3 text-center text-xs font-bold leading-5 text-white/85">
             {cameraMessage}
           </div>
         ) : null}
 
-        <div className="absolute bottom-6 left-0 right-0 z-20 flex items-center justify-center gap-9">
+        <div className="absolute bottom-[max(24px,env(safe-area-inset-bottom))] left-0 right-0 z-20 flex items-center justify-center gap-9">
           <button
             className="flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white"
             onClick={startCamera}
@@ -917,17 +946,17 @@ export function CapturePanel({
 
   if (phase === "sticker-recognizing") {
     return (
-      <section className="flex min-h-full flex-col items-center justify-center overflow-hidden bg-[#111318] text-white gap-6 px-8">
+      <section className="flex min-h-full flex-col items-center justify-center gap-6 overflow-hidden bg-[#111318] px-8 text-white">
         <div className="relative flex h-28 w-28 items-center justify-center">
-          <span className="absolute h-14 w-14 rounded-full bg-lgred/35 animate-scanPulse" />
-          <span className="absolute h-14 w-14 rounded-full bg-lgred/35 animate-scanPulse [animation-delay:0.67s]" />
+          <span className="absolute h-14 w-14 animate-scanPulse rounded-full bg-lgred/35" />
+          <span className="absolute h-14 w-14 animate-scanPulse rounded-full bg-lgred/35 [animation-delay:0.67s]" />
           <span className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-lgred">
             <ScanLine size={24} />
           </span>
         </div>
         <div className="text-center">
-          <p className="text-xl font-bold">라벨 분석 중</p>
-          <p className="mt-2 text-sm font-semibold text-white/60">모델명과 스펙 정보를 읽어오고 있어요</p>
+          <p className="text-xl font-bold">{"\uB77C\uBCA8 \uBD84\uC11D \uC911"}</p>
+          <p className="mt-2 text-sm font-semibold text-white/60">{"\uBAA8\uB378\uBA85\uACFC \uC2A4\uD399 \uC815\uBCF4\uB97C \uC77D\uACE0 \uC788\uC5B4\uC694"}</p>
         </div>
       </section>
     );
@@ -936,21 +965,27 @@ export function CapturePanel({
   return (
     <section className="relative h-full overflow-hidden bg-[#111318] text-white">
       <div className="absolute inset-0">
-        <video ref={videoRef} className={`h-full w-full object-cover ${cameraReady ? "opacity-100" : "opacity-0"}`} autoPlay muted playsInline />
+        <video
+          ref={videoRef}
+          className={`pointer-events-none h-full w-full select-none object-cover ${cameraReady ? "opacity-100" : "opacity-0"}`}
+          autoPlay
+          muted
+          playsInline
+        />
         {!cameraReady ? <CameraFallback target={target} /> : null}
         <div className="pointer-events-none absolute inset-0 bg-black/12" />
       </div>
 
-      <div className="relative z-20 flex items-center justify-between px-6 pt-5">
+      <div className="relative z-20 flex items-center justify-between px-6 pt-[max(22px,env(safe-area-inset-top))]">
         <button className="text-sm font-semibold text-white" onClick={onCancel} type="button">
-          취소
+          {"\uCDE8\uC18C"}
         </button>
         <span className="rounded-full bg-black/35 px-3 py-1 text-xs font-semibold text-white/90">
-          {target === "exterior" ? "1/2 외관 사진" : "2/2 뒷 라벨"}
+          {target === "exterior" ? "1/2 \uC678\uAD00 \uC0AC\uC9C4" : "2/2 \uB77C\uBCA8 \uC0AC\uC9C4"}
         </span>
       </div>
 
-      <div className="absolute inset-x-0 z-10 flex flex-col items-center justify-center gap-3" style={{ top: 60, bottom: 120 }}>
+      <div className="absolute inset-x-0 z-10 flex flex-col items-center justify-center gap-3" style={{ top: "max(76px,calc(env(safe-area-inset-top) + 60px))", bottom: "max(128px,calc(env(safe-area-inset-bottom) + 108px))" }}>
         <div
           ref={frameRef}
           className="rounded-[20px] border-2 border-[#35ff77]"
@@ -962,12 +997,12 @@ export function CapturePanel({
       </div>
 
       {cameraMessage ? (
-        <div className="absolute left-6 right-6 top-[92px] z-30 rounded-2xl bg-black/55 px-4 py-3 text-center text-xs font-bold leading-5 text-white/85">
+          <div className="absolute left-6 right-6 top-[max(92px,calc(env(safe-area-inset-top)+68px))] z-30 rounded-2xl bg-black/55 px-4 py-3 text-center text-xs font-bold leading-5 text-white/85">
           {cameraMessage}
         </div>
       ) : null}
 
-      <div className="absolute bottom-6 left-0 right-0 z-20 flex items-center justify-center gap-9">
+      <div className="absolute bottom-[max(24px,env(safe-area-inset-bottom))] left-0 right-0 z-20 flex items-center justify-center gap-9">
         <button
           className="flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white"
           onClick={() => void startCamera()}
@@ -984,11 +1019,11 @@ export function CapturePanel({
             <Camera size={30} />
           </span>
         </button>
+        <div className="h-11 w-11" />
       </div>
     </section>
   );
 }
-
 function CameraFallback({ target }: { target: CaptureTarget }) {
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#252a31]">
@@ -1003,13 +1038,17 @@ function CameraFallback({ target }: { target: CaptureTarget }) {
 }
 
 function RecognizingView({ applianceLabel }: { applianceLabel: string }) {
-  const steps = ["외관 특징 분석", "브랜드/모델명 추정", "예상 연식 및 상태 분류"];
+  const steps = [
+    "\uC678\uAD00 \uC0C1\uD0DC \uBD84\uC11D",
+    "\uBE0C\uB79C\uB4DC\uC640 \uBAA8\uB378\uBA85 \uCD94\uC815",
+    "\uC608\uC0C1 \uC5F0\uC2DD \uBC0F \uC0C1\uD0DC \uBD84\uB958",
+  ];
 
   return (
     <section className="flex min-h-full flex-col overflow-hidden bg-[#111318] text-white">
       <div className="flex items-start justify-between gap-4 px-5 pt-16">
         <div>
-          <h2 className="mt-1 text-xl font-bold">VLM + OpenAI 분석 중</h2>
+          <h2 className="mt-1 text-xl font-bold">{"VLM + OpenAI \uBD84\uC11D \uC911"}</h2>
         </div>
         <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/80">
           {applianceLabel}
@@ -1018,9 +1057,9 @@ function RecognizingView({ applianceLabel }: { applianceLabel: string }) {
 
       <div className="flex flex-1 flex-col items-center justify-center gap-7 px-5 pb-8">
         <div className="relative flex h-36 w-36 items-center justify-center">
-          <span className="absolute h-16 w-16 rounded-full bg-lgred/35 animate-scanPulse" />
-          <span className="absolute h-16 w-16 rounded-full bg-lgred/35 animate-scanPulse [animation-delay:0.67s]" />
-          <span className="absolute h-16 w-16 rounded-full bg-lgred/35 animate-scanPulse [animation-delay:1.33s]" />
+          <span className="absolute h-16 w-16 animate-scanPulse rounded-full bg-lgred/35" />
+          <span className="absolute h-16 w-16 animate-scanPulse rounded-full bg-lgred/35 [animation-delay:0.67s]" />
+          <span className="absolute h-16 w-16 animate-scanPulse rounded-full bg-lgred/35 [animation-delay:1.33s]" />
           <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-lgred">
             <ScanLine size={28} />
           </span>
@@ -1030,7 +1069,7 @@ function RecognizingView({ applianceLabel }: { applianceLabel: string }) {
           {steps.map((label, index) => (
             <li
               key={label}
-              className="flex items-center gap-3 rounded-2xl bg-white/8 px-4 py-3 opacity-0 animate-fadeSlideIn"
+              className="flex animate-fadeSlideIn items-center gap-3 rounded-2xl bg-white/8 px-4 py-3 opacity-0"
               style={{ animationDelay: `${0.15 + index * 0.28}s` }}
             >
               <CheckCircle2 size={18} className="shrink-0 text-lgred" />
@@ -1042,7 +1081,6 @@ function RecognizingView({ applianceLabel }: { applianceLabel: string }) {
     </section>
   );
 }
-
 function ReviewView({
   applianceLabel,
   exteriorPhotoFileName,
@@ -1080,10 +1118,7 @@ function ReviewView({
   return (
     <section className="phone-scroll flex h-full min-h-0 flex-col overflow-y-auto bg-white px-5 pb-0 pt-16 shadow-sm">
       {showModal && previewUrl && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
-          onClick={() => setShowModal(false)}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={() => setShowModal(false)}>
           <button
             className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white"
             onClick={() => setShowModal(false)}
@@ -1091,17 +1126,13 @@ function ReviewView({
           >
             <X size={20} />
           </button>
-          <img
-            src={previewUrl}
-            alt="촬영한 가전 원본"
-            className="max-h-screen max-w-full object-contain p-4"
-          />
+          <img src={previewUrl} alt="captured appliance preview" className="max-h-screen max-w-full object-contain p-4" />
         </div>
       )}
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="mt-1 text-xl font-bold text-ink">AI 인식 결과 확인</h2>
+          <h2 className="mt-1 text-xl font-bold text-ink">{"AI\uAC00 \uBD84\uC11D\uD55C \uACB0\uACFC\uC608\uC694"}</h2>
         </div>
         <span className="shrink-0 rounded-full bg-lgred/10 px-3 py-1 text-xs font-bold text-lgred">
           {applianceLabel}
@@ -1109,8 +1140,8 @@ function ReviewView({
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <p className="text-sm font-bold text-ink">방금 촬영한 사진</p>
-        <span className="text-[11px] font-bold text-slate-500">탭하면 전체보기</span>
+        <p className="text-sm font-bold text-ink">{"\uCD2C\uC601\uD55C \uC81C\uD488 \uC774\uBBF8\uC9C0"}</p>
+        <span className="text-[11px] font-bold text-slate-500">{"\uD074\uB9AD\uD558\uBA74 \uD06C\uAC8C \uBCFC \uC218 \uC788\uC5B4\uC694"}</span>
       </div>
 
       <div
@@ -1119,11 +1150,7 @@ function ReviewView({
         onClick={() => previewUrl && setShowModal(true)}
       >
         {previewUrl ? (
-          <img
-            src={previewUrl}
-            alt="촬영한 가전"
-            style={{ display: "block", width: "100%", height: "auto" }}
-          />
+          <img src={previewUrl} alt="captured appliance" style={{ display: "block", width: "100%", height: "auto" }} />
         ) : (
           <div className="flex h-56 flex-col items-center justify-center text-white/70">
             <Camera size={34} />
@@ -1138,72 +1165,43 @@ function ReviewView({
             <ShieldCheck size={18} />
           </span>
           <div>
-            <p className="text-sm font-bold text-ink">정보 확인 후 감정 진행</p>
+            <p className="text-sm font-bold text-ink">{"\uC815\uBCF4 \uD655\uC778 \uD6C4 \uAC10\uC815\uC744 \uC9C4\uD589\uD574\uC694"}</p>
             <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-              AI가 분석한 결과예요. 틀린 내용은 직접 수정할 수 있어요.
+              {"AI\uAC00 \uBD84\uC11D\uD55C \uACB0\uACFC\uC608\uC694. \uD2C0\uB9B0 \uB0B4\uC6A9\uC740 \uC9C1\uC811 \uC218\uC815\uD560 \uC218 \uC788\uC5B4\uC694."}
             </p>
           </div>
         </div>
       </div>
 
       <div className="mt-4 space-y-3">
-        <InfoInput label="가전 종류" value={recognizedInfo.applianceType} readOnly onChange={(value) => onChange({ ...recognizedInfo, applianceType: value })} />
-        <InfoInput label="브랜드" value={recognizedInfo.brand} onChange={(value) => onChange({ ...recognizedInfo, brand: value })} />
-        <InfoInput label="모델명" value={recognizedInfo.modelName} onChange={(value) => onChange({ ...recognizedInfo, modelName: value })} />
-        <InfoInput label="예상 연식" value={recognizedInfo.estimatedAge} readOnly onChange={(value) => onChange({ ...recognizedInfo, estimatedAge: value })} />
-        <InfoInput label="외관 상태" value={recognizedInfo.exteriorCondition} readOnly onChange={(value) => onChange({ ...recognizedInfo, exteriorCondition: value })} />
+        <InfoInput label={"\uAC00\uC804 \uC885\uB958"} value={recognizedInfo.applianceType} readOnly onChange={(value) => onChange({ ...recognizedInfo, applianceType: value })} />
+        <InfoInput label={"\uBE0C\uB79C\uB4DC"} value={recognizedInfo.brand} onChange={(value) => onChange({ ...recognizedInfo, brand: value })} />
+        <InfoInput label={"\uBAA8\uB378\uBA85"} value={recognizedInfo.modelName} onChange={(value) => onChange({ ...recognizedInfo, modelName: value })} />
+        <InfoInput label={"\uC608\uC0C1 \uC5F0\uC2DD"} value={recognizedInfo.estimatedAge} readOnly onChange={(value) => onChange({ ...recognizedInfo, estimatedAge: value })} />
+        <InfoInput label={"\uC678\uAD00 \uC0C1\uD0DC"} value={recognizedInfo.exteriorCondition} readOnly onChange={(value) => onChange({ ...recognizedInfo, exteriorCondition: value })} />
       </div>
 
       {credit !== null && (
         <div className="mt-4 overflow-hidden rounded-3xl bg-lgred">
-          {/* 최종 크레딧 */}
           <div className="flex items-center justify-between px-5 py-4">
             <div>
-              <p className="text-[11px] font-semibold text-white/65">예상 최종 크레딧</p>
+              <p className="text-[11px] font-semibold text-white/65">{"\uC608\uC0C1 \uD06C\uB808\uB527"}</p>
               <p className="mt-0.5 text-3xl font-bold text-white">
                 {credit.total.toLocaleString("ko-KR")}
-                <span className="ml-1 text-lg font-bold text-white/80">원</span>
+                <span className="ml-1 text-lg font-bold text-white/80">{"\uC6D0"}</span>
               </p>
             </div>
             <div className="text-right">
               <p className="text-xs font-bold text-white/60">{recognizedInfo.size} {recognizedInfo.applianceType}</p>
-              <p className="mt-1 text-[10px] font-semibold text-white/45">{DUMMY_SWAP_COUNT}회 이용 · {credit.tier} 신제품</p>
-            </div>
-          </div>
-          {/* 계산 내역 */}
-          <div className="space-y-1.5 bg-black/15 px-5 py-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-white/60">스크랩 가치</span>
-              <span className="text-[11px] font-semibold text-white/80">+{credit.scrap.toLocaleString("ko-KR")}원</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-white/60">
-                신제품 연계 ({(credit.ratio * 100).toFixed(0)}%)
-              </span>
-              <span className="text-[11px] font-semibold text-white/80">+{credit.bonus.toLocaleString("ko-KR")}원</span>
-            </div>
-            <div className="mt-1 border-t border-white/15 pt-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-white/40">
-                신제품가 {DUMMY_NEW_PRODUCT.price.toLocaleString("ko-KR")}원 기준 (더미)
-              </span>
-              <span className="text-[10px] font-semibold text-white/40">상한 {(CAP_RATIO * 100).toFixed(0)}%</span>
-            </div>
-            <div className="mt-1 flex items-center gap-1">
-              <span className={`text-[10px] font-semibold ${credit.weightFromDB ? "text-green-300" : "text-white/35"}`}>
-                {credit.weightFromDB ? "✓ 모델 무게 적용" : "크기 등급 평균값 적용"}
-              </span>
+              <p className="mt-1 text-[10px] font-semibold text-white/45">{DUMMY_SWAP_COUNT}{"\uD68C \uAD50\uD658 \uAE30\uC900"}</p>
             </div>
           </div>
         </div>
       )}
 
       <div className="sticky bottom-0 -mx-5 mt-5 grid grid-cols-2 gap-2 bg-white/95 px-5 pb-5 pt-3 shadow-[0_-14px_28px_rgba(255,255,255,.92)]">
-        <button
-          className="h-12 rounded-xl border border-lgred/20 bg-white text-sm font-bold text-lgred"
-          onClick={onRetake}
-          type="button"
-        >
-          다시 촬영
+        <button className="h-12 rounded-xl border border-lgred/20 bg-white text-sm font-bold text-lgred" onClick={onRetake} type="button">
+          {"\uB2E4\uC2DC \uCD2C\uC601"}
         </button>
         <button
           className="h-12 rounded-xl bg-lgred px-2 text-[13px] font-bold text-white disabled:bg-slate-300"
@@ -1211,36 +1209,10 @@ function ReviewView({
           onClick={onAnalyze}
           type="button"
         >
-          정보 확인 후 감정하기
+          {"\uC815\uBCF4 \uD655\uC778 \uD6C4 \uAC10\uC815\uD558\uAE30"}
         </button>
       </div>
     </section>
-  );
-}
-
-function PhotoCard({
-  title,
-  fileName,
-  previewUrl,
-}: {
-  title: string;
-  fileName: string;
-  previewUrl: string;
-}) {
-  return (
-    <div className="overflow-hidden rounded-3xl bg-[#111318] shadow-sm">
-      {previewUrl ? (
-        <img alt={title} className="h-36 w-full object-cover" src={previewUrl} />
-      ) : (
-        <div className="flex h-36 items-center justify-center text-white/70">
-          <Camera size={28} />
-        </div>
-      )}
-      <div className="bg-white px-3 py-3">
-        <p className="text-xs font-semibold text-slate-500">{title}</p>
-        <p className="mt-1 truncate text-xs font-semibold text-ink">{fileName || "미촬영"}</p>
-      </div>
-    </div>
   );
 }
 
@@ -1251,7 +1223,7 @@ function InfoInput({
   readOnly = false,
 }: {
   label: string;
-  value: string;
+  value: string | null | undefined;
   onChange: (value: string) => void;
   readOnly?: boolean;
 }) {
@@ -1260,7 +1232,7 @@ function InfoInput({
       <span className="text-xs font-semibold text-slate-500">{label}</span>
       <input
         className={`mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold text-ink outline-none ${readOnly ? "bg-slate-50" : "bg-white focus:border-lgred"}`}
-        value={value}
+        value={value ?? ""}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -1272,7 +1244,7 @@ function AnalyzingView({ applianceLabel }: { applianceLabel: string }) {
     <section className="flex min-h-full flex-col overflow-hidden bg-[#111318] text-white shadow-sm">
       <div className="flex items-start justify-between gap-4 px-5 pt-16">
         <div>
-          <h2 className="mt-1 text-xl font-bold">감정 중</h2>
+          <h2 className="mt-1 text-xl font-bold">{"\uAC10\uC815\uC744 \uC9C4\uD589\uD558\uACE0 \uC788\uC5B4\uC694"}</h2>
         </div>
         <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/80">
           {applianceLabel}
@@ -1281,17 +1253,17 @@ function AnalyzingView({ applianceLabel }: { applianceLabel: string }) {
 
       <div className="flex flex-1 flex-col items-center justify-center gap-8 pb-6">
         <div className="relative flex h-36 w-36 items-center justify-center">
-          <span className="absolute h-16 w-16 rounded-full bg-lgred/35 animate-scanPulse" />
-          <span className="absolute h-16 w-16 rounded-full bg-lgred/35 animate-scanPulse [animation-delay:0.67s]" />
-          <span className="absolute h-16 w-16 rounded-full bg-lgred/35 animate-scanPulse [animation-delay:1.33s]" />
+          <span className="absolute h-16 w-16 animate-scanPulse rounded-full bg-lgred/35" />
+          <span className="absolute h-16 w-16 animate-scanPulse rounded-full bg-lgred/35 [animation-delay:0.67s]" />
+          <span className="absolute h-16 w-16 animate-scanPulse rounded-full bg-lgred/35 [animation-delay:1.33s]" />
           <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-lgred">
             <Loader2 className="animate-spin" size={26} />
           </span>
         </div>
         <div className="text-center">
-          <p className="text-lg font-bold">원자재 스크랩 가치와 재사용 가능 부품을 분석 중입니다</p>
+          <p className="text-lg font-bold">{"\uC0AC\uC9C4\uACFC \uB77C\uBCA8 \uC815\uBCF4\uB97C \uBC18\uC601\uD558\uACE0 \uC788\uC5B4\uC694"}</p>
           <p className="mt-2 text-sm font-semibold text-white/60">
-            촬영 사진, 라벨 정보, 외관 상태를 바탕으로 예상 보상가를 계산합니다.
+            {"\uC608\uC0C1 \uD06C\uB808\uB527\uACFC \uC678\uAD00 \uC0C1\uD0DC\uB97C \uACC4\uC0B0\uD558\uB294 \uC911\uC785\uB2C8\uB2E4."}
           </p>
         </div>
       </div>

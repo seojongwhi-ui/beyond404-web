@@ -286,9 +286,9 @@ export function KakaoCanvasMap({
     return (
       <div className={`${className ?? ""} flex items-center justify-center bg-slate-100 p-5 text-center`}>
         <div>
-              <p className="text-sm font-black text-ink">Kakao Maps connection is required</p>
+          <p className="text-sm font-black text-ink">Kakao Maps 연결이 필요합니다</p>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                Check NEXT_PUBLIC_KAKAO_MAP_APP_KEY and restart the app.
+            NEXT_PUBLIC_KAKAO_MAP_APP_KEY 값을 확인한 뒤 앱을 다시 실행해 주세요.
           </p>
         </div>
       </div>

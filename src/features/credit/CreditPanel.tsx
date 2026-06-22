@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { Service3DIcon } from "@/components/Service3DIcon";
+import { purchaseProducts, type ProductId } from "@/features/purchase/PurchasePanel";
 import type { SwapRequest } from "@/types/swap";
 import { AlertCircle, Home, Image as ImageIcon, Loader2, MessageSquare, Send } from "lucide-react";
 import type { ReactNode } from "react";
@@ -20,6 +21,7 @@ type CreditPanelProps = {
   reviewStatus: ReviewStatus;
   bookingPurpose?: "pickup" | "installation";
   showMarketButton?: boolean;
+  selectedPurchaseProductId?: ProductId | null;
   swapRequest: SwapRequest | null;
   loading: boolean;
   onFinalize: () => void;
@@ -35,6 +37,7 @@ export function CreditPanel({
   reviewStatus,
   bookingPurpose = "pickup",
   showMarketButton = bookingPurpose === "pickup",
+  selectedPurchaseProductId = null,
   swapRequest,
   loading,
   onFinalize,
@@ -57,7 +60,17 @@ export function CreditPanel({
     swapRequest?.rewardEstimate?.estimatedFinalCredit ??
     swapRequest?.preValuation.maxEstimatedValue ??
     0;
-  const amcProductLabel = swapRequest?.selectedProduct?.productName ?? applianceLabelFor(swapRequest?.appliance.applianceType);
+  const selectedProduct = swapRequest?.selectedProduct;
+  const selectedCatalogProduct = selectedPurchaseProductId
+    ? purchaseProducts.find((product) => product.id === selectedPurchaseProductId) ?? null
+    : null;
+  const selectedProductPrice = selectedProduct?.productPrice ?? selectedCatalogProduct?.originalPrice;
+  const selectedProductName = selectedProduct?.productName ?? selectedCatalogProduct?.name;
+  const purchaseBenefitAmount = selectedProductPrice
+    ? calculatePurchaseBenefit(displayCreditAmount, selectedProductPrice)
+    : displayCreditAmount;
+  const finalDisplayAmount = showMarketButton ? displayCreditAmount : purchaseBenefitAmount;
+  const amcProductLabel = selectedProductName ?? applianceLabelFor(swapRequest?.appliance.applianceType);
   const reviewCompleted = reviewStatus === "reviewCompleted" || reviewStatus === "reReviewCompleted";
 
   useEffect(() => {
@@ -81,7 +94,7 @@ export function CreditPanel({
         <ReReviewPendingView onReturnHome={onReturnHome} />
       ) : reviewCompleted || credit || creditIssued ? (
         <CreditIssuedView
-          amount={displayCreditAmount}
+          amount={finalDisplayAmount}
           amcProductLabel={amcProductLabel}
           showMarketButton={showMarketButton}
           onReturnHome={onCreditReturnHome ?? onReturnHome}
@@ -95,6 +108,18 @@ export function CreditPanel({
       )}
     </section>
   );
+}
+
+function purchaseBenefitRate(productPrice: number) {
+  if (productPrice >= 1_500_000) return 0.1;
+  if (productPrice >= 500_000) return 0.07;
+  return 0.04;
+}
+
+function calculatePurchaseBenefit(baseCredit: number, productPrice?: number | null) {
+  if (productPrice == null || productPrice <= 0) return baseCredit;
+  const productPriceBonus = Math.round((productPrice * purchaseBenefitRate(productPrice)) / 1000) * 1000;
+  return baseCredit + productPriceBonus;
 }
 
 function PendingReviewView({ loading, onReturnHome }: { loading: boolean; onReturnHome: () => void }) {
@@ -276,19 +301,30 @@ function CreditIssuedView({
 
   return (
     <>
-      <div className="mt-4 rounded-[24px] border border-lgred/20 bg-lgred/10 p-6 text-center">
+      <div
+        className={`mt-4 rounded-[24px] border px-5 py-6 text-center ${
+          isPurchaseBenefit ? "border-lgred/20 bg-[#fff0f5]" : "border-lgred/15 bg-lgred/10"
+        }`}
+      >
         <Service3DIcon type="credit" className="mx-auto h-16 w-16" />
-        <p className="mt-4 text-xs font-semibold text-lgred">
+        <p className="mt-4 text-xs font-black text-lgred">
           {isPurchaseBenefit ? "AMC 혜택 적용 예정" : "크레딧 발급 완료"}
         </p>
-        <h2 className="mt-2 text-2xl font-bold leading-snug text-ink">
-          {isPurchaseBenefit ? `${amcProductLabel} AMC 골드 3년 서비스 예정` : `₩${amount.toLocaleString("ko-KR")} 크레딧을 받았어요`}
+        <h2 className={`mt-3 font-black text-ink ${isPurchaseBenefit ? "text-[21px] leading-8" : "text-[24px] leading-9"}`}>
+          {isPurchaseBenefit ? (
+            <>
+              <span className="block whitespace-nowrap">₩{amount.toLocaleString("ko-KR")} 할인을 받았어요.</span>
+              <span className="mt-1 block text-[19px] leading-7">LG Best Care AMC 무료 혜택이 적용돼요.</span>
+            </>
+          ) : (
+            `₩${amount.toLocaleString("ko-KR")} 크레딧을 받았어요`
+          )}
         </h2>
-        <p className="mx-auto mt-4 max-w-[300px] text-sm font-semibold leading-6 text-slate-500">
-          {isPurchaseBenefit
-            ? "선택한 LG 가전 구매 혜택에 AMC 서비스가 함께 적용될 예정입니다."
-            : "발급된 크레딧은 ThinQ 안에서 새 LG 가전을 구매하거나 교체 예약을 진행할 때 사용할 수 있습니다."}
-        </p>
+        {isPurchaseBenefit ? (
+          <p className="mx-auto mt-4 max-w-[300px] text-[13px] font-bold leading-6 text-slate-600">
+            {amcProductLabel}에 LG Best Care AMC 3년 혜택이 적용돼요.
+          </p>
+        ) : null}
       </div>
 
       <div className="mt-4 space-y-3">

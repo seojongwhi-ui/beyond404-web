@@ -1184,7 +1184,7 @@ export default function HomePage() {
             <ThinQSplashScreen />
           ) : thinQOpened ? (
             <div className={`relative flex h-full animate-[fadeIn_.18s_ease-out] flex-col ${phoneViewportBackgroundClass}`}>
-              {!isSwapAnalyzingScreen ? (
+              {!isSwapAnalyzingScreen && !isSwapCaptureScreen ? (
                 <PhoneStatusBar
                   className={isSwapIntroScreen ? "bg-transparent" : phoneViewportBackgroundClass}
                 />
@@ -2493,7 +2493,7 @@ function SwapItFeatureScreen(props: {
         props.step === "intro" ? "overflow-hidden" : ""
       }`}
     >
-      {props.step !== "analyzing" ? (
+      {props.step !== "analyzing" && props.step !== "capture" ? (
       <header className="relative z-20 px-4 pb-0">
         <div className="mb-3 flex items-center justify-between">
           <button
@@ -2632,6 +2632,7 @@ function SwapItFeatureScreen(props: {
             reviewStatus={props.homeSwapStatus}
             bookingPurpose={props.bookingPurpose}
             showMarketButton={props.selectedPurchaseProductId == null}
+            selectedPurchaseProductId={props.selectedPurchaseProductId}
             swapRequest={props.swapRequest}
             loading={props.creditLoading}
             onFinalize={props.onFinalize}
