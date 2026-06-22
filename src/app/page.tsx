@@ -501,7 +501,7 @@ function createAcceptedTrackingRequest(baseRequest?: SwapRequest | null): SwapRe
 }
 
 const crewAcceptedPickupStatuses = new Set(["ASSIGNED", "IN_PROGRESS", "ARRIVED"]);
-const crewAcceptedTrackingPhases = new Set(["CREW_ASSIGNED", "EN_ROUTE_TO_PICKUP", "PICKUP_CONFIRMED"]);
+const crewAcceptedTrackingPhases = new Set(["CREW_ASSIGNED", "EN_ROUTE_TO_PICKUP", "PICKUP_CONFIRMED", "EN_ROUTE_TO_PROCESSING_CENTER"]);
 const crewAcceptedRequestStatuses = new Set(["CREW_ASSIGNED", "PICKUP_IN_PROGRESS", "CREW_ARRIVED"]);
 
 function isCrewAcceptedSwapRequest(request: SwapRequest | null | undefined) {
@@ -2396,6 +2396,7 @@ function SwapItFeatureScreen(props: {
             onRequestReReview={props.onRequestReReview}
             onOpenMarket={props.onOpenMarket}
             onReturnHome={props.onReturnHome}
+            isPurchaseFlow={props.bookingPurpose === "installation"}
           />
         ) : null}
       </div>

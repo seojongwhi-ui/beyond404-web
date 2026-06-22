@@ -32,6 +32,7 @@ type CreditPanelProps = {
   onOpenMarket: () => void;
   onReturnHome: () => void;
   onCreditIssued?: () => void;
+  isPurchaseFlow?: boolean;
 };
 
 export function CreditPanel({
@@ -44,6 +45,7 @@ export function CreditPanel({
   onOpenMarket,
   onReturnHome,
   onCreditIssued,
+  isPurchaseFlow = false,
 }: CreditPanelProps) {
   const [reReviewOpen, setReReviewOpen] = useState(false);
   const [showReReviewResult, setShowReReviewResult] = useState(false);
@@ -60,6 +62,19 @@ export function CreditPanel({
     return (
       <section className="flex h-full min-h-0 flex-col rounded-[28px] bg-white p-5 shadow-sm">
         <ReReviewForm onBack={() => setReReviewOpen(false)} onSubmit={onRequestReReview} />
+      </section>
+    );
+  }
+
+  if (isPurchaseFlow) {
+    return (
+      <section className="flex min-h-full flex-col rounded-[28px] bg-white p-5 shadow-sm">
+        <PurchaseCompleteView
+          onReturnHome={() => {
+            onCreditIssued?.();
+            onReturnHome();
+          }}
+        />
       </section>
     );
   }
@@ -95,6 +110,49 @@ export function CreditPanel({
         <PendingReviewView loading={loading} onReturnHome={onReturnHome} />
       )}
     </section>
+  );
+}
+
+function PurchaseCompleteView({ onReturnHome }: { onReturnHome: () => void }) {
+  return (
+    <>
+      <div className="mt-4 rounded-3xl border border-lgred/20 bg-lgred/10 p-6 text-center">
+        <Service3DIcon type="check" className="mx-auto h-16 w-16" />
+        <p className="mt-4 text-xs font-semibold text-lgred">수거 완료</p>
+        <h2 className="mt-2 text-2xl font-bold text-ink">수거가 완료됐어요</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          기존 가전 수거가 완료됐어요. 보상 크레딧은 새 LG 제품 구매 금액에 이미 적용됐어요.
+        </p>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <ReviewRow
+          done
+          icon={<Service3DIcon type="check" className="h-9 w-9" />}
+          title="기존 가전 수거 완료"
+          description="수거한 가전은 LG 자원순환 프로세스로 이동했어요."
+        />
+        <ReviewRow
+          done
+          icon={<Service3DIcon type="credit" className="h-9 w-9" />}
+          title="보상 크레딧 적용 완료"
+          description="보상 크레딧이 새 제품 구매 금액에서 차감됐어요."
+        />
+        <ReviewRow
+          done
+          icon={<Service3DIcon type="truck" className="h-9 w-9" />}
+          title="새 제품 설치 예정"
+          description="예약한 일정에 맞춰 새 LG 제품 설치가 진행돼요."
+        />
+      </div>
+
+      <button
+        className="mt-auto h-12 w-full rounded-xl bg-lgred text-sm font-bold text-white"
+        onClick={onReturnHome}
+      >
+        홈으로
+      </button>
+    </>
   );
 }
 

@@ -33,9 +33,13 @@ type TrackingViewModel = {
   pickupAddress: string;
   crewLocation: Coordinates | null;
   crewAddress: string;
+  pickupDistanceLabel: string;
   hubDistanceLabel: string;
   processingCenter: { label: string; lat: number; lng: number } | null;
   etaLabel: string;
+  routeDistanceLabel: string;
+  routeDurationLabel: string;
+  routeDistanceMeters: number | null;
   routePath: Coordinates[];
   crewProfile: {
     name: string;
@@ -44,6 +48,7 @@ type TrackingViewModel = {
     phone: string;
   } | null;
   locationMessage: string;
+  events: NonNullable<SwapRequest["tracking"]["events"]>;
 };
 
 type RouteMode = "car" | "walk";
@@ -59,7 +64,7 @@ const progressSteps = [
   { key: "REQUESTED", label: "요청 접수" },
   { key: "ASSIGNED", label: "크루 배정" },
   { key: "EN_ROUTE", label: "수거지 이동" },
-  { key: "ARRIVED", label: "문앞 도착" },
+  { key: "ARRIVED", label: "수거 완료" },
   { key: "HUB_DONE", label: "e-waste 공장 전달 완료" },
 ] as const;
 
@@ -126,7 +131,7 @@ function titleFor(status: PickupTrackingStatus) {
     case "en_route_pickup":
       return "크루가 수거지로 이동 중이에요";
     case "arrived":
-      return "크루가 문앞에 도착했어요";
+      return "수거가 완료됐어요";
     case "en_route_hub":
       return "수거 후 처리 허브로 이동 중이에요";
     case "delivered_to_hub":
@@ -143,7 +148,7 @@ function subtitleFor(status: PickupTrackingStatus) {
     case "en_route_pickup":
       return "실시간 이동 경로와 예상 도착 시간을 확인할 수 있어요.";
     case "arrived":
-      return "문앞 도착 후 실물 확인과 수거가 진행됩니다.";
+      return "크루가 기존 제품 수거를 완료했어요.";
     case "en_route_hub":
       return "수거 후 처리 허브까지의 이동 상황을 계속 확인할 수 있어요.";
     case "delivered_to_hub":
@@ -198,6 +203,7 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
     pickupAddress: request.pickupRequest?.address ?? request.booking?.address ?? "수거 위치 정보 없음",
     crewLocation: driverLocation,
     crewAddress: driverLocation ? "크루 현재 이동 위치" : "크루 위치 확인 중",
+    pickupDistanceLabel: formatDistance(request.tracking.metrics?.crewToPickupMeters),
     hubDistanceLabel: formatDistance(request.tracking.metrics?.crewToProcessingCenterMeters),
     processingCenter: request.tracking.processingCenter ?? null,
     etaLabel: status === "delivered_to_hub" ? "처리 완료" : minutes > 0 ? `${minutes}분 예상` : "곧 도착",
@@ -220,6 +226,7 @@ function mapToViewModel(request: SwapRequest): TrackingViewModel | null {
     locationMessage: request.tracking.metrics?.locationLive
       ? `실시간 위치 갱신 ${request.tracking.driverLocation?.updatedAt ? formatDateTime(request.tracking.driverLocation.updatedAt) : ""}`.trim()
       : "최신 위치를 확인하는 중입니다.",
+    events: request.tracking.events ?? [],
   };
 }
 
@@ -301,6 +308,7 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
       ? viewModel.processingCenter
       : viewModel.pickupLocation;
   const hasSubmittedReview = Boolean(liveRequest.crewReview);
+  const currentStepIndex = progressIndex(viewModel.status);
 
   const handleSubmitReview = async () => {
     if (!liveRequest.id) return;
@@ -368,6 +376,9 @@ export function TrackingPanel({ swapRequest, onNext }: TrackingPanelProps) {
             crewLocation={viewModel.crewLocation}
             pickupLocation={viewModel.pickupLocation}
             processingCenter={viewModel.processingCenter}
+            routeDistanceLabel={viewModel.routeDistanceLabel}
+            routeDistanceMeters={viewModel.routeDistanceMeters}
+            routeDurationLabel={viewModel.routeDurationLabel}
             routePath={viewModel.routePath}
             status={viewModel.status}
           />
@@ -533,12 +544,18 @@ function TrackingMap({
   crewLocation,
   pickupLocation,
   processingCenter,
+  routeDistanceLabel,
+  routeDistanceMeters,
+  routeDurationLabel,
   routePath,
   status,
 }: {
   crewLocation: Coordinates | null;
   pickupLocation: Coordinates;
   processingCenter: { label: string; lat: number; lng: number } | null;
+  routeDistanceLabel: string;
+  routeDistanceMeters: number | null;
+  routeDurationLabel: string;
   routePath: Coordinates[];
   status: PickupTrackingStatus;
 }) {
@@ -608,15 +625,6 @@ function TrackingMap({
         ) : (
           <TrackingFallbackMap crewLocation={crewLocation} pickupLocation={pickupLocation} />
         )}
-          <div className="flex h-[340px] w-full items-center justify-center px-6 text-center">
-            <div>
-              <p className="text-sm font-black text-ink">Kakao Maps 연결이 필요합니다</p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` 값을 확인한 뒤 앱을 다시 실행해 주세요.
-              </p>
-            </div>
-          </div>
-        )}
 
         <div className="absolute right-3 top-3 z-30 flex rounded-full bg-white/95 p-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur">
           {(["car", "walk"] as const).map((mode) => (
@@ -663,6 +671,29 @@ function TrackingMap({
         <MapLegend colorClass="bg-[#dc2626]" label="크루 현재 위치" />
         <MapLegend colorClass="bg-[#16a34a]" label="처리 허브" />
       </div>
+    </div>
+  );
+}
+
+function InfoCard({
+  icon,
+  title,
+  value,
+  caption,
+}: {
+  icon: ReactNode;
+  title: string;
+  value: string;
+  caption: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <div className="flex items-center gap-2 text-xs font-bold text-lgred">
+        {icon}
+        {title}
+      </div>
+      <p className="mt-2 text-[13px] font-bold leading-5 text-ink">{value}</p>
+      <p className="mt-1 text-xs font-medium leading-5 text-slate-500">{caption}</p>
     </div>
   );
 }
@@ -725,7 +756,7 @@ function defaultEventMessage(stepKey: (typeof progressSteps)[number]["key"]) {
     case "EN_ROUTE":
       return "크루 위치가 실시간으로 갱신됩니다.";
     case "ARRIVED":
-      return "문앞 도착 후 실물 확인과 수거가 진행됩니다.";
+      return "크루가 기존 제품 수거를 완료했어요.";
     case "HUB_DONE":
       return "e-waste 공장 전달 완료 시 최종 완료 상태가 표시됩니다.";
   }
