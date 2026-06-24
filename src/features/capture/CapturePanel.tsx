@@ -190,8 +190,8 @@ function getWeightForCalc(
   return { weight: APPLIANCE_WEIGHTS[key]?.[grade] ?? 40, fromDB: false };
 }
 
-function normalizeApplianceId(applianceType: string): ApplianceId {
-  const normalized = applianceType.trim().toLowerCase();
+function normalizeApplianceId(applianceType?: string | null): ApplianceId {
+  const normalized = applianceType?.trim().toLowerCase() ?? "";
   if (normalized === "washing_machine") return "washing_machine";
   if (normalized === "refrigerator") return "refrigerator";
   if (normalized === "air_conditioner") return "air_conditioner";

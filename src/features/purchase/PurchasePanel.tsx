@@ -35,6 +35,7 @@ type PurchasePanelProps = {
   selectedProductId: ProductId | null;
   swapRequestId?: number | null;
   onSelectProduct: (productId: ProductId) => void;
+  onPurchaseBenefitChange?: (amount: number | null) => void;
   onContinueToBooking: () => void;
 };
 
@@ -406,6 +407,7 @@ export function PurchasePanel({
   selectedProductId,
   swapRequestId,
   onSelectProduct,
+  onPurchaseBenefitChange,
   onContinueToBooking,
 }: PurchasePanelProps) {
   const selectedProduct = purchaseProducts.find((product) => product.id === selectedProductId) ?? null;
@@ -424,6 +426,10 @@ export function PurchasePanel({
   useEffect(() => {
     setSelectedCategoryId(preferredCategoryId);
   }, [preferredCategoryId]);
+
+  useEffect(() => {
+    onPurchaseBenefitChange?.(selectedProduct ? selectedPurchaseBenefit : null);
+  }, [onPurchaseBenefitChange, selectedProduct, selectedPurchaseBenefit]);
 
   return (
     <section className="rounded-[28px] bg-white p-4 shadow-sm">

@@ -22,6 +22,7 @@ type CreditPanelProps = {
   bookingPurpose?: "pickup" | "installation";
   showMarketButton?: boolean;
   selectedPurchaseProductId?: ProductId | null;
+  purchaseBenefitAmount?: number | null;
   swapRequest: SwapRequest | null;
   loading: boolean;
   onFinalize: () => void;
@@ -38,6 +39,7 @@ export function CreditPanel({
   bookingPurpose = "pickup",
   showMarketButton = bookingPurpose === "pickup",
   selectedPurchaseProductId = null,
+  purchaseBenefitAmount = null,
   swapRequest,
   loading,
   onFinalize,
@@ -54,22 +56,23 @@ export function CreditPanel({
   const issueCreditTriggeredRef = useRef(false);
   const credit = swapRequest?.credit;
   const issuedCreditAmount = credit?.amount && credit.amount > 0 ? credit.amount : undefined;
-  const displayCreditAmount =
-    issuedCreditAmount ??
+  const baseValuationAmount =
     swapRequest?.finalValuation?.amount ??
     swapRequest?.rewardEstimate?.estimatedFinalCredit ??
     swapRequest?.preValuation.maxEstimatedValue ??
     0;
+  const displayCreditAmount = issuedCreditAmount ?? baseValuationAmount;
   const selectedProduct = swapRequest?.selectedProduct;
-  const selectedCatalogProduct = selectedPurchaseProductId
-    ? purchaseProducts.find((product) => product.id === selectedPurchaseProductId) ?? null
+  const selectedProductId = selectedPurchaseProductId ?? selectedProduct?.productId ?? null;
+  const selectedCatalogProduct = selectedProductId
+    ? purchaseProducts.find((product) => product.id === selectedProductId) ?? null
     : null;
-  const selectedProductPrice = selectedProduct?.productPrice ?? selectedCatalogProduct?.originalPrice;
-  const selectedProductName = selectedProduct?.productName ?? selectedCatalogProduct?.name;
-  const purchaseBenefitAmount = selectedProductPrice
-    ? calculatePurchaseBenefit(displayCreditAmount, selectedProductPrice)
+  const selectedProductName = selectedCatalogProduct?.name ?? selectedProduct?.productName;
+  const isPurchaseBenefitFlow = purchaseBenefitAmount != null || Boolean(selectedCatalogProduct);
+  const shouldShowMarketButton = showMarketButton && !isPurchaseBenefitFlow;
+  const finalDisplayAmount = isPurchaseBenefitFlow
+    ? purchaseBenefitAmount ?? calculatePurchaseBenefit(baseValuationAmount, selectedCatalogProduct?.originalPrice)
     : displayCreditAmount;
-  const finalDisplayAmount = showMarketButton ? displayCreditAmount : purchaseBenefitAmount;
   const amcProductLabel = selectedProductName ?? applianceLabelFor(swapRequest?.appliance.applianceType);
   const reviewCompleted = reviewStatus === "reviewCompleted" || reviewStatus === "reReviewCompleted";
 
@@ -96,7 +99,7 @@ export function CreditPanel({
         <CreditIssuedView
           amount={finalDisplayAmount}
           amcProductLabel={amcProductLabel}
-          showMarketButton={showMarketButton}
+          showMarketButton={shouldShowMarketButton}
           onReturnHome={onCreditReturnHome ?? onReturnHome}
           onUseCredit={() => {
             onCreditReturnHome?.();

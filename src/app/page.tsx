@@ -528,6 +528,7 @@ export default function HomePage() {
   const [selectedAppliance, setSelectedAppliance] = useState<ApplianceId>(applianceOptions[0].id);
   const [fileName, setFileName] = useState("");
   const [selectedPurchaseProductId, setSelectedPurchaseProductId] = useState<ProductId | null>(null);
+  const [selectedPurchaseBenefitAmount, setSelectedPurchaseBenefitAmount] = useState<number | null>(null);
   const [bookingPurpose, setBookingPurpose] = useState<BookingPurpose>("pickup");
   const [swapRequest, setSwapRequest] = useState<SwapRequest | null>(null);
   const [activeReservationRequest, setActiveReservationRequest] = useState<SwapRequest | null>(null);
@@ -923,6 +924,7 @@ export default function HomePage() {
     setLastCaptureSubmission(null);
     setCapturedApplianceImageUrl("");
     setSelectedPurchaseProductId(null);
+    setSelectedPurchaseBenefitAmount(null);
     setBookingPurpose("pickup");
     setSwapRequest(null);
     setSelectedAppliance(applianceOptions[0].id);
@@ -1267,6 +1269,7 @@ export default function HomePage() {
                   onApplianceChange={(appliance) => {
                     setSelectedAppliance(appliance);
                     setSelectedPurchaseProductId(null);
+                    setSelectedPurchaseBenefitAmount(null);
                   }}
                   onStart={() => setSwapStep("capture")}
                   onFileChange={setFileName}
@@ -1293,7 +1296,9 @@ export default function HomePage() {
                   onOpenInstallationBooking={() => openBookingScreen("installation")}
                   onOpenPurchaseFlow={openPurchaseSelectionScreen}
                   selectedPurchaseProductId={selectedPurchaseProductId}
+                  selectedPurchaseBenefitAmount={selectedPurchaseBenefitAmount}
                   onSelectPurchaseProduct={setSelectedPurchaseProductId}
+                  onPurchaseBenefitChange={setSelectedPurchaseBenefitAmount}
                   onBooking={(booking) => bookingMutation.mutate(booking)}
                   onComplete={() => {
                     creditMutation.mutate();
@@ -2451,7 +2456,9 @@ function SwapItFeatureScreen(props: {
   onOpenInstallationBooking: () => void;
   onOpenPurchaseFlow: () => void;
   selectedPurchaseProductId: ProductId | null;
+  selectedPurchaseBenefitAmount: number | null;
   onSelectPurchaseProduct: (productId: ProductId | null) => void;
+  onPurchaseBenefitChange: (amount: number | null) => void;
   onBooking: (booking: BookingSelection) => void;
   onComplete: () => void;
   onFinalize: () => void;
@@ -2588,6 +2595,7 @@ function SwapItFeatureScreen(props: {
             selectedProductId={props.selectedPurchaseProductId}
             swapRequestId={props.swapRequest?.id ?? null}
             onSelectProduct={(productId) => props.onSelectPurchaseProduct(productId)}
+            onPurchaseBenefitChange={props.onPurchaseBenefitChange}
             onContinueToBooking={props.onOpenInstallationBooking}
           />
         ) : null}
@@ -2637,6 +2645,7 @@ function SwapItFeatureScreen(props: {
             bookingPurpose={props.bookingPurpose}
             showMarketButton={props.selectedPurchaseProductId == null}
             selectedPurchaseProductId={props.selectedPurchaseProductId}
+            purchaseBenefitAmount={props.selectedPurchaseBenefitAmount}
             swapRequest={props.swapRequest}
             loading={props.creditLoading}
             onFinalize={props.onFinalize}
