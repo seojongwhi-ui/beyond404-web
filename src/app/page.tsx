@@ -1375,29 +1375,8 @@ export default function HomePage() {
 
 function ThinQSplashScreen() {
   return (
-    <div className="relative flex h-full overflow-hidden bg-[#dfeec1]">
-      <PhoneStatusBar />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,.45),transparent_28%),linear-gradient(180deg,rgba(230,244,203,.72),rgba(214,232,184,.96))]" />
-      <div className="absolute left-[11%] top-[26%] h-[22%] w-[24%] rounded-[32px] bg-white/18 blur-2xl" />
-      <div className="absolute bottom-[12%] left-[6%] h-28 w-12 rounded-t-full bg-[#458f63]" />
-      <div className="absolute bottom-[16%] left-[12%] h-24 w-10 rotate-[-18deg] rounded-t-full bg-[#5ca86f]" />
-      <div className="absolute bottom-[15%] left-[18%] h-20 w-9 rotate-[18deg] rounded-t-full bg-[#6fb97a]" />
-      <div className="absolute bottom-[15%] left-[9%] h-24 w-20 rounded-sm border-[10px] border-white/70 bg-[#b9dbb2]" />
-      <div className="absolute bottom-[20%] left-[9%] h-3 w-16 rounded-full bg-[#70bd83]" />
-      <div className="absolute bottom-[16%] right-[8%] h-[2px] w-[76%] bg-white/80" />
-      <div className="absolute bottom-[17%] right-[18%] h-28 w-[46%] rounded-t-[16px] bg-white/70 shadow-[0_20px_60px_rgba(68,92,58,.18)]" />
-      <div className="absolute bottom-[23%] right-[35%] h-32 w-20 rounded-t-full bg-[#c7473d]" />
-      <div className="absolute bottom-[36%] right-[39%] h-9 w-9 rounded-full bg-[#f0c45d]" />
-      <div className="absolute bottom-[25%] right-[27%] h-28 w-16 rotate-[8deg] rounded-full bg-[#e9f6e4]" />
-      <div className="absolute bottom-[32%] right-[19%] h-24 w-2 rotate-[35deg] rounded-full bg-[#2f3338]" />
-      <div className="absolute bottom-[42%] right-[16%] h-10 w-10 rounded-full border-[5px] border-[#2f3338]" />
-      <div className="absolute bottom-[31%] right-[43%] h-10 w-7 rounded-[8px] bg-[#27313b]" />
-      <div className="absolute left-1/2 top-[42%] z-10 -translate-x-1/2 text-center">
-        <p className="text-[44px] font-bold tracking-tight text-white drop-shadow-[0_14px_26px_rgba(126,151,96,.28)]">
-          LG ThinQ
-        </p>
-      </div>
-      <div className="absolute bottom-2 left-1/2 h-1.5 w-32 -translate-x-1/2 rounded-full bg-black/30 md:hidden" />
+    <div className="relative h-full overflow-hidden bg-[#dfeec1]">
+      <img alt="LG ThinQ" className="h-full w-full object-cover" src="/thinq-splash.jpg" />
     </div>
   );
 }
