@@ -315,6 +315,10 @@ function knownText(value?: string | null) {
   return text;
 }
 
+function normalizeSpecText(value?: string | null) {
+  return knownText(value).replace(/[^0-9A-Za-z가-힣]/g, "").toLowerCase();
+}
+
 function mergeKnownRecognizedInfo(base: RecognizedAppliance, incoming?: CapturePreviewResult | null): RecognizedAppliance {
   if (!incoming) return base;
 
@@ -1232,12 +1236,22 @@ function ReviewView({
     Boolean(recognizedApplianceType) &&
     normalizeApplianceId(recognizedApplianceType) !== selectedApplianceId;
   const hasModelSpecMismatch = modelSpecValidation.status === "mismatched";
+  const hasBrandSpecMismatch =
+    modelSpecValidation.status === "matched" &&
+    Boolean(knownText(recognizedInfo.brand)) &&
+    Boolean(knownText(modelSpecValidation.spec.brand)) &&
+    normalizeSpecText(recognizedInfo.brand) !== normalizeSpecText(modelSpecValidation.spec.brand);
   const modelSpecTypeLabel =
     modelSpecValidation.status === "mismatched"
       ? applianceLabelById(normalizeApplianceId(modelSpecValidation.spec.applianceType ?? ""))
       : "";
   const modelSpecIsUnavailable = modelSpecValidation.status === "checking" || modelSpecValidation.status === "not_found";
-  const shouldBlockAnalyze = hasUnknownRequiredInfo || hasApplianceTypeMismatch || hasModelSpecMismatch || modelSpecIsUnavailable;
+  const shouldBlockAnalyze =
+    hasUnknownRequiredInfo ||
+    hasApplianceTypeMismatch ||
+    hasModelSpecMismatch ||
+    hasBrandSpecMismatch ||
+    modelSpecIsUnavailable;
 
   return (
     <section className="phone-scroll flex h-full min-h-0 flex-col overflow-y-auto bg-white px-5 pb-0 pt-16 shadow-sm">
@@ -1323,6 +1337,13 @@ function ReviewView({
           </p>
           <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
             선택한 {applianceLabel}와 일치해야 감정할 수 있어요.
+          </p>
+        </div>
+      ) : hasBrandSpecMismatch ? (
+        <div className="mt-3 rounded-2xl border border-lgred/20 bg-lgred/5 px-4 py-3">
+          <p className="text-sm font-black text-lgred">입력한 브랜드가 DB의 모델 정보와 달라요.</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+            DB 기준 브랜드는 {modelSpecValidation.spec.brand}입니다. 브랜드와 모델명을 다시 확인해 주세요.
           </p>
         </div>
       ) : modelSpecValidation.status === "not_found" && modelForValidation ? (
